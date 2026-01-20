@@ -1,0 +1,201 @@
+# ============================================================================
+# UCG Studio - Docker Compose Configuration
+# Production Deployment
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # --------------------------------------------------------------------------
+  # Vue 3 Frontend Application
+  # --------------------------------------------------------------------------
+  vue-app:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: ucg-studio-app
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_N8N_API_KEY=${N8N_API_KEY}
+      - VITE_N8N_WEBHOOK_URL=https://n8n.ucgstudio.com
+      - VITE_APP_URL=https://app.ucgstudio.com
+      - VITE_SENTRY_DSN=${SENTRY_DSN}
+      - NODE_ENV=production
+    networks:
+      - ucg-network
+    volumes:
+      - app-logs:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --------------------------------------------------------------------------
+  # n8n Automation Platform
+  # --------------------------------------------------------------------------
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: ucg-studio-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - WEBHOOK_URL=https://n8n.ucgstudio.com
+      - N8N_HOST=n8n.ucgstudio.com
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production
+      - EXECUTIONS_PROCESS=main
+      - EXECUTIONS_MODE=regular
+      # External API Keys
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - VEO3_API_KEY=${VEO3_API_KEY}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+    networks:
+      - ucg-network
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - n8n-logs:/var/log/n8n
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --------------------------------------------------------------------------
+  # Redis (Caching & Session Management)
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: ucg-studio-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - ucg-network
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --------------------------------------------------------------------------
+  # Nginx Reverse Proxy
+  # --------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: ucg-studio-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - ucg-network
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+      - certbot-webroot:/var/www/certbot
+    depends_on:
+      - vue-app
+      - n8n
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --------------------------------------------------------------------------
+  # Certbot (SSL Certificates)
+  # --------------------------------------------------------------------------
+  certbot:
+    image: certbot/certbot
+    container_name: ucg-studio-certbot
+    volumes:
+      - ./ssl:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  # --------------------------------------------------------------------------
+  # Loki (Log Aggregation)
+  # --------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:latest
+    container_name: ucg-studio-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    networks:
+      - ucg-network
+    volumes:
+      - loki-data:/loki
+      - ./loki-config.yml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+
+  # --------------------------------------------------------------------------
+  # Promtail (Log Collector)
+  # --------------------------------------------------------------------------
+  promtail:
+    image: grafana/promtail:latest
+    container_name: ucg-studio-promtail
+    restart: unless-stopped
+    networks:
+      - ucg-network
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml
+      - app-logs:/var/log/app
+      - nginx-logs:/var/log/nginx
+      - n8n-logs:/var/log/n8n
+    command: -config.file=/etc/promtail/config.yml
+
+  # --------------------------------------------------------------------------
+  # Grafana (Monitoring Dashboard)
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ucg-studio-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    networks:
+      - ucg-network
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - loki
+
+# ==============================================================================
+# Networks
+# ==============================================================================
+networks:
+  ucg-network:
+    driver: bridge
+
+# ==============================================================================
+# Volumes
+# ==============================================================================
+volumes:
+  n8n-data:
+  redis-data:
+  loki-data:
+  grafana-data:
+  app-logs:
+  nginx-logs:
+  n8n-logs:
+  certbot-webroot:
