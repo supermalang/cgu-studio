@@ -1,9 +1,17 @@
 <script setup>
+import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+const isLibraryOpen = ref(true)
+
+const isLibraryActive = computed(() => {
+  return route.name === 'avatars' || route.name === 'environments'
+})
 </script>
 
 <template>
@@ -36,38 +44,59 @@ const router = useRouter()
         <span class="font-medium">Projects</span>
       </router-link>
 
-      <router-link
-        to="/assets"
-        class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-neutral-600 hover:bg-neutral-50"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-        </svg>
-        <span class="font-medium">Assets</span>
-      </router-link>
+      <!-- Library Section (Collapsible) -->
+      <div>
+        <button
+          @click="isLibraryOpen = !isLibraryOpen"
+          class="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all"
+          :class="isLibraryActive
+            ? 'bg-primary-50 text-primary-600'
+            : 'text-neutral-600 hover:bg-neutral-50'"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          <span class="font-medium flex-1 text-left">Library</span>
+          <svg
+            class="w-4 h-4 transition-transform"
+            :class="{ 'rotate-180': isLibraryOpen }"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
 
-      <router-link
-        to="/avatars"
-        class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all"
-        :class="$route.name === 'avatars'
-          ? 'bg-primary-50 text-primary-600'
-          : 'text-neutral-600 hover:bg-neutral-50'"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-        <span class="font-medium">Avatars</span>
-      </router-link>
+        <!-- Nested items under Library -->
+        <div v-if="isLibraryOpen" class="ml-4 space-y-1 mt-1">
+          <router-link
+            to="/avatars"
+            class="flex items-center gap-3 px-4 py-2 rounded-lg transition-all"
+            :class="$route.name === 'avatars'
+              ? 'bg-primary-50 text-primary-600'
+              : 'text-neutral-600 hover:bg-neutral-50'"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span class="font-medium">Avatars</span>
+          </router-link>
 
-      <router-link
-        to="/environments"
-        class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-neutral-600 hover:bg-neutral-50"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-        <span class="font-medium">Environments</span>
-      </router-link>
+          <router-link
+            to="/environments"
+            class="flex items-center gap-3 px-4 py-2 rounded-lg transition-all"
+            :class="$route.name === 'environments'
+              ? 'bg-primary-50 text-primary-600'
+              : 'text-neutral-600 hover:bg-neutral-50'"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <span class="font-medium">Environments</span>
+          </router-link>
+        </div>
+      </div>
 
       <router-link
         to="/settings"

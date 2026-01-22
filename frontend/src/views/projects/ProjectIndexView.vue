@@ -224,16 +224,26 @@ function handleCreateProject() {
           </button>
         </div>
 
-        <!-- Create Button -->
-        <button
-          @click="handleCreateProject"
-          class="btn-primary flex items-center gap-2 shadow-lg shadow-primary-600/40"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          New Project
-        </button>
+        <div class="flex items-center gap-3">
+          <!-- Completed Projects Badge -->
+          <div class="flex items-center gap-2 px-4 py-2 bg-success-50 rounded-lg">
+            <svg class="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="text-sm font-semibold text-success-700">{{ completedProjects }} Completed</span>
+          </div>
+
+          <!-- Create Button -->
+          <button
+            @click="handleCreateProject"
+            class="btn-primary flex items-center gap-2 shadow-lg shadow-primary-600/40"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            New Project
+          </button>
+        </div>
       </div>
 
       <!-- Loading State -->
