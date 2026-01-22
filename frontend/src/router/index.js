@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 const routes = [
   {
     path: '/',
-    redirect: '/dashboard'
+    redirect: '/projects'
   },
   {
     path: '/auth/login',
@@ -25,9 +25,27 @@ const routes = [
     meta: { requiresGuest: true }
   },
   {
+    path: '/projects',
+    name: 'projects',
+    component: () => import('@/views/projects/ProjectIndexView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/projects/new',
+    name: 'project-create',
+    component: () => import('@/views/projects/ProjectCreateView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('@/views/dashboard/DashboardView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/avatars',
+    name: 'avatars',
+    component: () => import('@/views/avatars/AvatarLibraryView.vue'),
     meta: { requiresAuth: true }
   },
   {

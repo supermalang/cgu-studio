@@ -14,39 +14,43 @@ async function handleLogout() {
 </script>
 
 <template>
-  <header class="bg-white border-b border-gray-200">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <header class="bg-white border-b border-neutral-200">
+    <div class="ml-64 px-6">
       <div class="flex justify-between items-center h-16">
-        <!-- Logo -->
-        <div class="flex items-center">
-          <router-link to="/dashboard" class="flex items-center space-x-2">
-            <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span class="text-white font-bold text-lg">U</span>
-            </div>
-            <span class="text-xl font-bold text-neutral-900">UCG Studio</span>
-          </router-link>
-        </div>
-
-        <!-- Right side -->
-        <div class="flex items-center space-x-4">
-          <!-- Credit Balance -->
-          <div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-neutral-50 rounded-lg">
+        <!-- Search Bar -->
+        <div class="flex-1 max-w-2xl">
+          <div class="relative">
             <svg
-              class="w-5 h-5 text-primary"
+              class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <span class="font-semibold text-neutral-900">{{ authStore.creditBalance }}</span>
-            <span class="text-sm text-gray-500">credits</span>
+            <input
+              type="text"
+              placeholder="Search projects, templates or assets..."
+              class="w-full pl-10 pr-4 py-2 bg-neutral-50 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+            />
           </div>
+        </div>
+
+        <!-- Right side -->
+        <div class="flex items-center space-x-3">
+          <!-- Notification Bell -->
+          <button class="relative w-10 h-10 rounded-lg hover:bg-neutral-100 flex items-center justify-center transition-colors">
+            <svg class="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+          </button>
+
+          <!-- Help Button -->
+          <button class="w-10 h-10 rounded-lg hover:bg-neutral-100 flex items-center justify-center transition-colors">
+            <svg class="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
 
           <!-- User Menu -->
           <div class="relative">
@@ -85,17 +89,17 @@ async function handleLogout() {
                 </div>
 
                 <router-link
-                  to="/dashboard"
-                  class="block px-4 py-2 text-sm text-neutral-900 hover:bg-gray-50"
-                >
-                  Dashboard
-                </router-link>
-
-                <router-link
                   to="/settings"
                   class="block px-4 py-2 text-sm text-neutral-900 hover:bg-gray-50"
                 >
                   Settings
+                </router-link>
+
+                <router-link
+                  to="/billing"
+                  class="block px-4 py-2 text-sm text-neutral-900 hover:bg-gray-50"
+                >
+                  Billing
                 </router-link>
 
                 <router-link

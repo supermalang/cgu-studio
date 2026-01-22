@@ -1101,6 +1101,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ----------------------------------------------------------------------------
+-- HELPER FUNCTION: CHECK IF USER IS ADMIN (bypasses RLS)
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- SECURITY DEFINER allows this function to bypass RLS policies
+  -- This prevents infinite recursion when checking admin status
+  RETURN EXISTS (
+    SELECT 1
+    FROM profiles
+    WHERE id = auth.uid()
+    AND role = 'admin'
+  );
+END;
+$$;
+
 -- ============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ============================================================================
@@ -1136,22 +1158,12 @@ USING (auth.uid() = id);
 -- Admins can view all profiles
 CREATE POLICY "Admins can view all profiles"
 ON profiles FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- Admins can update all profiles
 CREATE POLICY "Admins can update all profiles"
 ON profiles FOR UPDATE
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- ----------------------------------------------------------------------------
 -- ADMIN SETTINGS POLICIES
@@ -1165,12 +1177,7 @@ USING (true);
 -- Only admins can update admin settings
 CREATE POLICY "Only admins can update admin settings"
 ON admin_settings FOR UPDATE
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- ----------------------------------------------------------------------------
 -- PROJECTS POLICIES
@@ -1199,22 +1206,12 @@ USING (auth.uid() = user_id);
 -- Admins can view all projects
 CREATE POLICY "Admins can view all projects"
 ON projects FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- Admins can archive (update) all projects
 CREATE POLICY "Admins can update all projects"
 ON projects FOR UPDATE
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- ----------------------------------------------------------------------------
 -- SHOTS POLICIES
@@ -1267,12 +1264,7 @@ USING (
 -- Admins can view all shots
 CREATE POLICY "Admins can view all shots"
 ON shots FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- ----------------------------------------------------------------------------
 -- CREDIT TRANSACTIONS POLICIES
@@ -1286,12 +1278,7 @@ USING (auth.uid() = user_id);
 -- Admins can view all transactions
 CREATE POLICY "Admins can view all transactions"
 ON credit_transactions FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- System can insert transactions (via triggers)
 -- No direct INSERT policy needed - handled by triggers
@@ -1313,12 +1300,7 @@ WITH CHECK (auth.uid() = user_id);
 -- Admins can view all payments
 CREATE POLICY "Admins can view all payments"
 ON payment_transactions FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- ----------------------------------------------------------------------------
 -- EXPORTS POLICIES
@@ -1342,12 +1324,7 @@ USING (auth.uid() = user_id);
 -- Admins can view all exports
 CREATE POLICY "Admins can view all exports"
 ON exports FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- ----------------------------------------------------------------------------
 -- N8N JOBS POLICIES
@@ -1361,12 +1338,7 @@ USING (auth.uid() = user_id);
 -- Admins can view all jobs
 CREATE POLICY "Admins can view all jobs"
 ON n8n_jobs FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- System can insert/update jobs
 -- No direct policies needed - handled by application
@@ -1420,12 +1392,7 @@ USING (auth.uid() = user_id);
 -- Admins can view all avatars
 CREATE POLICY "Admins can view all avatars"
 ON avatars FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- ----------------------------------------------------------------------------
 -- AVATAR WARDROBES POLICIES (Future)
@@ -1491,12 +1458,7 @@ USING (auth.uid() = user_id);
 -- Admins can view all environments
 CREATE POLICY "Admins can view all environments"
 ON environments FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+USING (is_admin());
 
 -- ============================================================================
 -- SCHEDULED JOBS (pg_cron)
