@@ -55,6 +55,18 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/environments/new',
+    name: 'environment-create',
+    component: () => import('@/views/environments/EnvironmentCreateView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/environments/:id',
+    name: 'environment-detail',
+    component: () => import('@/views/environments/EnvironmentDetailView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/projects/:id',
     name: 'project-detail',
     component: () => import('@/views/project/ProjectDetailView.vue'),

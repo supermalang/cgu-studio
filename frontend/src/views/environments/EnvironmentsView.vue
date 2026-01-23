@@ -83,8 +83,11 @@ const filteredEnvironments = computed(() => {
 })
 
 function handleCreateEnvironment() {
-  // Navigate to create environment page or show modal
-  console.log('Create new environment')
+  router.push('/environments/new')
+}
+
+function openEnvironment(environmentId) {
+  router.push(`/environments/${environmentId}`)
 }
 
 function getStatusBadgeClass(status) {
@@ -198,7 +201,8 @@ function getStatusLabel(status) {
         <div
           v-for="environment in filteredEnvironments"
           :key="environment.id"
-          class="card-interactive group"
+          @click="openEnvironment(environment.id)"
+          class="card-interactive group cursor-pointer"
         >
           <!-- Environment Image -->
           <div class="relative mb-4 rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 4/3;">
