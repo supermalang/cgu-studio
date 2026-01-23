@@ -5,6 +5,7 @@ import Sidebar from '@/components/common/Sidebar.vue'
 import AppHeader from '@/components/common/AppHeader.vue'
 import CompanySettingsForm from '@/components/settings/admin/CompanySettingsForm.vue'
 import PlatformSettingsForm from '@/components/settings/admin/PlatformSettingsForm.vue'
+import N8nIntegrationForm from '@/components/settings/admin/N8nIntegrationForm.vue'
 import CreditPackagesManager from '@/components/settings/admin/CreditPackagesManager.vue'
 import AuditInfo from '@/components/settings/admin/AuditInfo.vue'
 import { useAdminSettings } from '@/composables/useAdminSettings'
@@ -17,6 +18,7 @@ const companyStore = useCompanyStore()
 
 const companyFormRef = ref(null)
 const platformFormRef = ref(null)
+const n8nFormRef = ref(null)
 
 onMounted(async () => {
   await fetchSettings()
@@ -30,6 +32,15 @@ function handlePlatformUpdate(data) {
   updatePlatformSettings(data)
 }
 
+function handleN8nUpdate(data) {
+  // Merge n8n integration data with existing platform settings
+  const updatedPlatformSettings = {
+    ...settings.value.platform_settings,
+    n8n_integration: data
+  }
+  updatePlatformSettings(updatedPlatformSettings)
+}
+
 function handlePackagesUpdate(packages) {
   updateCreditPackages(packages)
 }
@@ -38,9 +49,11 @@ async function handleSave() {
   // Check for validation errors in forms
   const companyErrors = companyFormRef.value?.errors || {}
   const platformErrors = platformFormRef.value?.errors || {}
+  const n8nErrors = n8nFormRef.value?.errors || {}
 
   const hasErrors = Object.values(companyErrors).some(err => err) ||
-                    Object.values(platformErrors).some(err => err)
+                    Object.values(platformErrors).some(err => err) ||
+                    Object.values(n8nErrors).some(err => err)
 
   if (hasErrors) {
     showToast('Please fix validation errors before saving', 'error')
@@ -148,6 +161,13 @@ function handleBeforeUnload(e) {
             ref="platformFormRef"
             :settings="settings"
             @update="handlePlatformUpdate"
+          />
+
+          <!-- n8n Integration -->
+          <N8nIntegrationForm
+            ref="n8nFormRef"
+            :settings="settings"
+            @update="handleN8nUpdate"
           />
 
           <!-- Credit Packages -->
