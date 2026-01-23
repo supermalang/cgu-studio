@@ -104,10 +104,10 @@ async function handleLogout() {
 
                 <router-link
                   v-if="authStore.isAdmin"
-                  to="/admin"
+                  to="/admin/settings"
                   class="block px-4 py-2 text-sm text-neutral-900 hover:bg-gray-50"
                 >
-                  Admin
+                  Admin Settings
                 </router-link>
 
                 <div class="border-t border-gray-200 mt-1 pt-1">

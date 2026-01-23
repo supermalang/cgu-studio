@@ -69,7 +69,7 @@ const routes = [
   {
     path: '/projects/:id',
     name: 'project-detail',
-    component: () => import('@/views/project/ProjectDetailView.vue'),
+    component: () => import('@/views/projects/ProjectDetailView.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -79,9 +79,21 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/billing',
+    name: 'billing',
+    component: () => import('@/views/Billing.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'admin',
     component: () => import('@/views/admin/AdminDashboard.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/settings',
+    name: 'admin-settings',
+    component: () => import('@/views/admin/AdminSettings.vue'),
     meta: { requiresAuth: true, requiresAdmin: true }
   }
 ]
