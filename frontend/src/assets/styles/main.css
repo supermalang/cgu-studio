@@ -17,6 +17,7 @@
 @layer components {
   /* Button Variants */
   .btn-primary {
+    @apply inline-flex items-center justify-center;
     @apply bg-primary-500 text-white px-4 py-2.5 rounded-lg font-medium;
     @apply hover:bg-primary-600 active:bg-primary-700;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
@@ -25,6 +26,7 @@
   }
 
   .btn-secondary {
+    @apply inline-flex items-center justify-center;
     @apply bg-white text-neutral-900 px-4 py-2.5 rounded-lg font-medium border border-neutral-200;
     @apply hover:bg-neutral-50 hover:border-neutral-300 active:bg-neutral-100;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
@@ -33,6 +35,7 @@
   }
 
   .btn-ghost {
+    @apply inline-flex items-center justify-center;
     @apply bg-transparent text-neutral-700 px-4 py-2.5 rounded-lg font-medium;
     @apply hover:bg-neutral-100 active:bg-neutral-200;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
@@ -41,6 +44,7 @@
   }
 
   .btn-danger {
+    @apply inline-flex items-center justify-center;
     @apply bg-error-500 text-white px-4 py-2.5 rounded-lg font-medium;
     @apply hover:bg-error-600 active:bg-error-700;
     @apply focus:outline-none focus:ring-2 focus:ring-error-500 focus:ring-offset-2;
