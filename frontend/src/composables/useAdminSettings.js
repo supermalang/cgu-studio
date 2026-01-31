@@ -1,15 +1,33 @@
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
 
+// Simple hash function for comparing objects (much faster than JSON.stringify)
+function simpleHash(obj) {
+  if (!obj) return ''
+  let hash = 0
+  const str = JSON.stringify(obj)
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return hash.toString()
+}
+
 export function useAdminSettings() {
   const settings = ref(null)
   const isLoading = ref(false)
   const error = ref(null)
   const originalSettings = ref(null)
+  const originalHash = ref('')
+  const currentHash = ref('')
 
   const isDirty = computed(() => {
     if (!settings.value || !originalSettings.value) return false
-    return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
+    // Only compute hash when settings actually change
+    const newHash = simpleHash(settings.value)
+    currentHash.value = newHash
+    return currentHash.value !== originalHash.value
   })
 
   async function fetchSettings() {
@@ -27,6 +45,8 @@ export function useAdminSettings() {
 
       settings.value = data
       originalSettings.value = JSON.parse(JSON.stringify(data))
+      originalHash.value = simpleHash(data)
+      currentHash.value = originalHash.value
     } catch (err) {
       console.error('Error fetching admin settings:', err)
       error.value = err.message
@@ -89,6 +109,8 @@ export function useAdminSettings() {
       // Update both settings and originalSettings to the saved state
       settings.value = data
       originalSettings.value = JSON.parse(JSON.stringify(data))
+      originalHash.value = simpleHash(data)
+      currentHash.value = originalHash.value
 
       return { data, error: null }
     } catch (err) {
@@ -103,6 +125,7 @@ export function useAdminSettings() {
   function reset() {
     if (originalSettings.value) {
       settings.value = JSON.parse(JSON.stringify(originalSettings.value))
+      currentHash.value = originalHash.value
     }
   }
 

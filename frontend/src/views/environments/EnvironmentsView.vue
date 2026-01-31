@@ -1,82 +1,86 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth'
 import Sidebar from '@/components/common/Sidebar.vue'
 import AppHeader from '@/components/common/AppHeader.vue'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
-// Mock data for environments
-const environments = ref([
-  {
-    id: 1,
-    name: 'Modern Home Office',
-    category: 'Interior',
-    imageUrl: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=400&fit=crop',
-    lighting: 'Natural',
-    version: 'v2.0',
-    status: 'ready'
-  },
-  {
-    id: 2,
-    name: 'Luxury Car Interior',
-    category: 'Vehicle',
-    imageUrl: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&h=400&fit=crop',
-    lighting: 'Studio',
-    version: 'v1.5',
-    status: null
-  },
-  {
-    id: 3,
-    name: 'Coffee Shop',
-    category: 'Commercial',
-    imageUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400&h=400&fit=crop',
-    lighting: 'Ambient',
-    version: 'v3.0',
-    status: null
-  },
-  {
-    id: 4,
-    name: 'Retail Store',
-    category: 'Commercial',
-    imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop',
-    lighting: 'Bright',
-    version: 'v1.0',
-    status: 'in_sync'
-  },
-  {
-    id: 5,
-    name: 'Outdoor Park',
-    category: 'Exterior',
-    imageUrl: 'https://images.unsplash.com/photo-1551006917-7c3efc9ecc8a?w=400&h=400&fit=crop',
-    lighting: 'Natural',
-    version: 'v2.1',
-    status: null
-  },
-  {
-    id: 6,
-    name: 'Studio Setup',
-    category: 'Interior',
-    imageUrl: 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=400&h=400&fit=crop',
-    lighting: 'Studio',
-    version: 'v1.8',
-    status: 'ready'
-  }
-])
-
+// State
+const environments = ref([])
+const isLoading = ref(true)
+const error = ref(null)
 const activeFilter = ref('all')
 const searchQuery = ref('')
 
-const totalActive = computed(() => environments.value.length)
+// Fetch environments from Supabase
+async function fetchEnvironments() {
+  isLoading.value = true
+  error.value = null
+
+  try {
+    const { data, error: fetchError } = await supabase
+      .from('environments')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (fetchError) throw fetchError
+
+    // If no environments exist, use placeholder data
+    if (!data || data.length === 0) {
+      environments.value = [
+        {
+          id: 'placeholder-1',
+          name: 'Modern Home Office',
+          category: 'interior',
+          reference_image_url: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=400&fit=crop',
+          environment_specs: {
+            category: 'interior',
+            lighting_type: 'natural'
+          },
+          is_active: true,
+          created_at: new Date().toISOString()
+        }
+      ]
+    } else {
+      environments.value = data
+    }
+  } catch (err) {
+    console.error('Error fetching environments:', err)
+    error.value = 'Failed to load environments'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  await fetchEnvironments()
+})
+
+const totalActive = computed(() => environments.value.filter(env => env.is_active).length)
 
 const filteredEnvironments = computed(() => {
   let filtered = environments.value
 
+  // Filter by category
+  if (activeFilter.value !== 'all') {
+    filtered = filtered.filter(env => {
+      const category = env.environment_specs?.category || 'interior'
+      return category === activeFilter.value
+    })
+  }
+
+  // Filter by search query
   if (searchQuery.value) {
-    filtered = filtered.filter(env =>
-      env.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      env.category.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(env => {
+      const name = env.name?.toLowerCase() || ''
+      const category = env.environment_specs?.category?.toLowerCase() || ''
+      return name.includes(query) || category.includes(query)
+    })
   }
 
   return filtered
@@ -90,20 +94,24 @@ function openEnvironment(environmentId) {
   router.push(`/environments/${environmentId}`)
 }
 
-function getStatusBadgeClass(status) {
-  const classes = {
-    ready: 'bg-success-500 text-white',
-    in_sync: 'bg-primary-500 text-white'
-  }
-  return classes[status] || ''
+function getStatusBadgeClass(isActive) {
+  return isActive ? 'bg-success-500 text-white' : 'bg-neutral-400 text-white'
 }
 
-function getStatusLabel(status) {
-  const labels = {
-    ready: 'READY',
-    in_sync: 'IN SYNC'
-  }
-  return labels[status] || status.toUpperCase()
+function getEnvironmentCategory(env) {
+  return env.environment_specs?.category || 'interior'
+}
+
+function getEnvironmentLighting(env) {
+  return env.environment_specs?.lighting_type || 'natural'
+}
+
+function formatCategoryLabel(category) {
+  return category.charAt(0).toUpperCase() + category.slice(1)
+}
+
+function formatLightingLabel(lighting) {
+  return lighting.charAt(0).toUpperCase() + lighting.slice(1)
 }
 </script>
 
@@ -195,8 +203,19 @@ function getStatusLabel(status) {
         </div>
       </div>
 
+      <!-- Loading State -->
+      <div v-if="isLoading" class="text-center py-12">
+        <div class="loading-spinner mx-auto"></div>
+        <p class="mt-4 text-neutral-600">Loading environments...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded-lg">
+        {{ error }}
+      </div>
+
       <!-- Environment Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <!-- Environment Cards -->
         <div
           v-for="environment in filteredEnvironments"
@@ -207,23 +226,23 @@ function getStatusLabel(status) {
           <!-- Environment Image -->
           <div class="relative mb-4 rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 4/3;">
             <img
-              :src="environment.imageUrl"
+              :src="environment.reference_image_url || 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=400&fit=crop'"
               :alt="environment.name"
               class="w-full h-full object-cover"
             />
 
             <!-- Status Badge -->
             <div
-              v-if="environment.status"
+              v-if="environment.is_active !== null"
               class="absolute top-3 right-3"
             >
               <span
                 :class="[
                   'inline-flex items-center px-2.5 py-1 rounded text-xs font-bold tracking-wide',
-                  getStatusBadgeClass(environment.status)
+                  getStatusBadgeClass(environment.is_active)
                 ]"
               >
-                {{ getStatusLabel(environment.status) }}
+                {{ environment.is_active ? 'READY' : 'INACTIVE' }}
               </span>
             </div>
 
@@ -241,12 +260,9 @@ function getStatusLabel(status) {
               {{ environment.name }}
             </h3>
             <div class="flex items-center gap-3 text-sm text-neutral-500">
-              <span>{{ environment.category }}</span>
+              <span>{{ formatCategoryLabel(getEnvironmentCategory(environment)) }}</span>
               <span class="text-neutral-300">•</span>
-              <span>{{ environment.lighting }} Lighting</span>
-            </div>
-            <div class="text-sm text-neutral-400 mt-1">
-              {{ environment.version }}
+              <span>{{ formatLightingLabel(getEnvironmentLighting(environment)) }} Lighting</span>
             </div>
           </div>
         </div>

@@ -103,20 +103,27 @@ const router = createRouter({
   routes
 })
 
+// Track if auth has been initialized to avoid waiting on every navigation
+let authInitialized = false
+
 // Navigation guards
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  // Wait for auth to initialize on first load
-  if (authStore.loading) {
+  // Wait for auth to initialize only on first navigation
+  if (!authInitialized && authStore.loading) {
     await new Promise(resolve => {
       const unwatch = authStore.$subscribe((mutation, state) => {
         if (!state.loading) {
           unwatch()
+          authInitialized = true
           resolve()
         }
       })
     })
+  } else if (!authInitialized) {
+    // If not loading but not initialized yet, mark as initialized
+    authInitialized = true
   }
 
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)

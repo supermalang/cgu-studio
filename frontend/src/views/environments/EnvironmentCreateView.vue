@@ -1,18 +1,43 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
+import { useN8nIntegration } from '@/composables/useN8nIntegration'
+import { useImageUpload } from '@/composables/useImageUpload'
+import { useJobTracking } from '@/composables/useJobTracking'
+import { useToast } from '@/composables/useToast'
 import Sidebar from '@/components/common/Sidebar.vue'
 import AppHeader from '@/components/common/AppHeader.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { sendToEndpoint } = useN8nIntegration()
+const { showToast } = useToast()
+const {
+  isUploading,
+  uploadProgress,
+  uploadError,
+  validateImage,
+  uploadImage,
+  uploadImageWithRetry
+} = useImageUpload()
+const {
+  createJob,
+  subscribeToJob,
+  resubscribeToPendingJobs,
+  getExistingJob
+} = useJobTracking()
+
+// n8n configuration
+const n8nConfig = ref(null)
 
 // Form data
 const environmentName = ref('')
 const description = ref('')
-const referenceImageUrl = ref('')
+const selectedImage = ref(null)
+const imagePreviewUrl = ref(null)
+const uploadedImageUrl = ref(null)
 const category = ref('interior')
 const lightingType = ref('natural')
 const backgroundColor = ref('#ffffff')
@@ -29,8 +54,10 @@ const roomSize = ref('medium')
 
 // UI state
 const isLoading = ref(false)
+const isProcessing = ref(false)
 const error = ref(null)
 const showImageUploader = ref(false)
+const creationStep = ref(null) // null | 'uploading' | 'saving' | 'completed'
 
 // Options
 const categoryOptions = [
@@ -80,6 +107,28 @@ const floorTypeOptions = [
 const characterCount = computed(() => description.value.length)
 const maxCharacters = 500
 
+// Fetch n8n configuration on mount
+onMounted(async () => {
+  try {
+    const { data, error: fetchError } = await supabase
+      .from('admin_settings')
+      .select('platform_settings')
+      .eq('id', 1)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    if (data?.platform_settings?.n8n_integration) {
+      n8nConfig.value = data.platform_settings.n8n_integration
+    }
+  } catch (err) {
+    console.error('Error fetching n8n config:', err)
+  }
+
+  // Resubscribe to any pending jobs on mount
+  await resubscribeToPendingJobs()
+})
+
 function validateForm() {
   const errors = []
 
@@ -93,7 +142,144 @@ function validateForm() {
   return errors
 }
 
+function handleImageSelect(event) {
+  const file = event.target.files[0]
+  if (!file) return
+
+  const validation = validateImage(file)
+  if (!validation.valid) {
+    error.value = validation.error
+    selectedImage.value = null
+    imagePreviewUrl.value = null
+    return
+  }
+
+  selectedImage.value = file
+  imagePreviewUrl.value = URL.createObjectURL(file)
+  error.value = null
+}
+
+function removeImage() {
+  if (imagePreviewUrl.value) {
+    URL.revokeObjectURL(imagePreviewUrl.value)
+  }
+  selectedImage.value = null
+  imagePreviewUrl.value = null
+  uploadedImageUrl.value = null
+}
+
+function handleJobUpdate(job) {
+  console.log('Job updated:', job)
+
+  if (job.status === 'completed') {
+    isProcessing.value = false
+  } else if (job.status === 'failed') {
+    isProcessing.value = false
+  }
+}
+
+async function sendToN8nWithTracking(environmentData) {
+  console.log('[n8n] sendToN8nWithTracking called', {
+    environmentId: environmentData.id,
+    hasConfig: !!n8nConfig.value,
+    enabled: n8nConfig.value?.enabled,
+    endpointUrl: n8nConfig.value?.endpoints?.environments?.url
+  })
+
+  if (!n8nConfig.value?.enabled || !n8nConfig.value?.endpoints?.environments?.url) {
+    console.warn('[n8n] n8n not configured or disabled')
+    return { success: false, error: 'n8n not configured' }
+  }
+
+  const TIMEOUT_MS = 15000
+
+  try {
+    // Check for existing job
+    console.log('[n8n] Checking for existing job...')
+    const existingJob = await getExistingJob(environmentData.id)
+
+    if (existingJob && existingJob.status === 'generating') {
+      console.log('[n8n] Existing job found, subscribing', existingJob.id)
+      subscribeToJob(existingJob.id, handleJobUpdate)
+      showToast('Generation already in progress...', 'info', 3000)
+      return { success: true, jobId: existingJob.id }
+    }
+
+    // Create new job record
+    console.log('[n8n] Creating new job record...')
+    const job = await createJob({
+      workflow_type: 'environment_creation',
+      environment_id: environmentData.id
+    })
+    console.log('[n8n] Job created:', job.id)
+
+    // Subscribe to job updates
+    subscribeToJob(job.id, handleJobUpdate)
+
+    // Send to n8n with timeout
+    const payload = {
+      event: 'environment_created',
+      timestamp: new Date().toISOString(),
+      user_id: authStore.user.id,
+      user_email: authStore.user.email,
+      job_id: job.id,
+      image_url: environmentData.reference_image_url || null,
+      environment: environmentData
+    }
+
+    console.log('[n8n] Sending to n8n endpoint...', {
+      url: n8nConfig.value.endpoints.environments.url,
+      hasToken: !!n8nConfig.value.api_token,
+      jobId: job.id,
+      imageUrl: payload.image_url
+    })
+
+    const result = await Promise.race([
+      sendToEndpoint(
+        n8nConfig.value.endpoints.environments.url,
+        n8nConfig.value.api_token,
+        payload
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)
+      )
+    ])
+
+    console.log('[n8n] n8n response:', result)
+
+    if (!result.success) throw new Error(result.error)
+    return { success: true, jobId: job.id }
+
+  } catch (err) {
+    console.error('Error sending to n8n:', err)
+
+    const existingJob = await getExistingJob(environmentData.id)
+
+    if (err.message === 'timeout') {
+      if (existingJob) {
+        showToast('Request timed out, but job is being processed.', 'warning', 5000)
+        subscribeToJob(existingJob.id, handleJobUpdate)
+        return { success: true, jobId: existingJob.id }
+      } else {
+        showToast('Request timed out. Please retry.', 'error', 0)
+        return { success: false, error: 'timeout' }
+      }
+    }
+
+    if (existingJob) {
+      showToast('Request failed. Please retry.', 'error', 0)
+    }
+
+    return { success: false, error: err.message }
+  }
+}
+
 async function handleSaveDraft() {
+  if (isProcessing.value) {
+    showToast('Already processing...', 'warning', 2000)
+    return
+  }
+
   const validationErrors = validateForm()
   if (validationErrors.length > 0) {
     error.value = validationErrors.join('. ')
@@ -101,10 +287,25 @@ async function handleSaveDraft() {
   }
 
   isLoading.value = true
+  isProcessing.value = true
   error.value = null
 
   try {
-    // Build environment_specs JSONB object
+    // Step 1: Upload image FIRST (if selected)
+    let finalImageUrl = null
+
+    if (selectedImage.value) {
+      const uploadResult = await uploadImageWithRetry(selectedImage.value)
+
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Image upload failed')
+      }
+
+      finalImageUrl = uploadResult.url
+      uploadedImageUrl.value = finalImageUrl
+    }
+
+    // Step 2: Create environment with uploaded image URL
     const environmentSpecs = {
       category: category.value,
       lighting_type: lightingType.value,
@@ -119,33 +320,55 @@ async function handleSaveDraft() {
       room_size: roomSize.value
     }
 
-    const { data, error: createError } = await supabase
+    const { data: createdEnvironment, error: createError } = await supabase
       .from('environments')
       .insert({
         user_id: authStore.user.id,
         name: environmentName.value,
         description: description.value || null,
-        reference_image_url: referenceImageUrl.value || null,
+        reference_image_url: finalImageUrl,
         environment_specs: environmentSpecs,
         is_active: true,
         created_by: authStore.user.id,
         updated_by: authStore.user.id
       })
-      .select()
+      .select('id, name, reference_image_url, environment_specs')
       .single()
 
     if (createError) throw createError
 
+    // Step 3: Send to n8n with job tracking (non-blocking)
+    console.log('Environment saved, sending to n8n...', {
+      environmentId: createdEnvironment.id,
+      hasImageUrl: !!createdEnvironment.reference_image_url,
+      imageUrl: createdEnvironment.reference_image_url,
+      n8nEnabled: n8nConfig.value?.enabled,
+      n8nEndpoint: n8nConfig.value?.endpoints?.environments?.url
+    })
+
+    sendToN8nWithTracking(createdEnvironment).catch(err => {
+      console.error('n8n tracking error (non-blocking):', err)
+    })
+
+    // Step 4: Show success and redirect
+    showToast('Environment saved successfully!', 'success', 3000)
     router.push('/environments')
+
   } catch (err) {
     console.error('Error creating environment:', err)
-    error.value = 'Failed to create environment. Please try again.'
+    error.value = err.message || 'Failed to create environment'
+    isProcessing.value = false
   } finally {
     isLoading.value = false
   }
 }
 
 async function handleCreateAndActivate() {
+  if (isProcessing.value) {
+    showToast('Already processing...', 'warning', 2000)
+    return
+  }
+
   const validationErrors = validateForm()
   if (validationErrors.length > 0) {
     error.value = validationErrors.join('. ')
@@ -153,9 +376,37 @@ async function handleCreateAndActivate() {
   }
 
   isLoading.value = true
+  isProcessing.value = true
   error.value = null
 
   try {
+    // Step 1: Upload image FIRST (if selected)
+    let finalImageUrl = null
+
+    if (selectedImage.value) {
+      creationStep.value = 'uploading'
+
+      const uploadResult = await uploadImageWithRetry(selectedImage.value)
+
+      if (!uploadResult.success) {
+        // Enhanced error messages
+        let errorMsg = 'Image upload failed'
+        if (uploadResult.error.includes('timeout')) {
+          errorMsg = 'Upload timed out. Please check your connection and try again.'
+        } else if (uploadResult.error.includes('storage quota')) {
+          errorMsg = 'Storage limit reached. Please contact support.'
+        } else {
+          errorMsg = uploadResult.error
+        }
+        throw new Error(errorMsg)
+      }
+
+      finalImageUrl = uploadResult.url
+      uploadedImageUrl.value = finalImageUrl
+    }
+
+    // Step 2: Create environment with uploaded image URL
+    creationStep.value = 'saving'
     const environmentSpecs = {
       category: category.value,
       lighting_type: lightingType.value,
@@ -170,31 +421,61 @@ async function handleCreateAndActivate() {
       room_size: roomSize.value
     }
 
-    const { data, error: createError } = await supabase
+    const { data: createdEnvironment, error: createError } = await supabase
       .from('environments')
       .insert({
         user_id: authStore.user.id,
         name: environmentName.value,
         description: description.value || null,
-        reference_image_url: referenceImageUrl.value || null,
+        reference_image_url: finalImageUrl,
         environment_specs: environmentSpecs,
         is_active: true,
         created_by: authStore.user.id,
         updated_by: authStore.user.id
       })
-      .select()
+      .select('id, name, reference_image_url, environment_specs')
       .single()
 
     if (createError) throw createError
 
-    router.push('/environments')
+    // Step 3: Send to n8n with job tracking (non-blocking)
+    console.log('Environment created, sending to n8n...', {
+      environmentId: createdEnvironment.id,
+      hasImageUrl: !!createdEnvironment.reference_image_url,
+      imageUrl: createdEnvironment.reference_image_url,
+      n8nEnabled: n8nConfig.value?.enabled,
+      n8nEndpoint: n8nConfig.value?.endpoints?.environments?.url
+    })
+
+    sendToN8nWithTracking(createdEnvironment).catch(err => {
+      console.error('n8n tracking error (non-blocking):', err)
+    })
+
+    // Step 4: Show success and redirect
+    creationStep.value = 'completed'
+    showToast('Environment created successfully!', 'success', 3000)
+
+    // Small delay so user sees success state
+    setTimeout(() => {
+      router.push('/environments')
+    }, 500)
+
   } catch (err) {
     console.error('Error creating environment:', err)
-    error.value = 'Failed to create and activate environment. Please try again.'
+    error.value = err.message || 'Failed to create environment'
+    isProcessing.value = false
   } finally {
     isLoading.value = false
+    creationStep.value = null
   }
 }
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (imagePreviewUrl.value) {
+    URL.revokeObjectURL(imagePreviewUrl.value)
+  }
+})
 </script>
 
 <template>
@@ -242,10 +523,20 @@ async function handleCreateAndActivate() {
               :disabled="isLoading || !environmentName"
               class="btn-primary flex items-center gap-2 shadow-lg shadow-primary-600/40"
             >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <!-- Show different icon based on state -->
+              <svg v-if="creationStep === 'uploading' || creationStep === 'saving'"
+                   class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
-              Create Environment
+
+              <!-- Show different text based on state -->
+              <span v-if="creationStep === 'uploading'">Uploading Image...</span>
+              <span v-else-if="creationStep === 'saving'">Creating Environment...</span>
+              <span v-else>Create Environment</span>
             </button>
           </div>
         </div>
@@ -302,18 +593,91 @@ async function handleCreateAndActivate() {
                 ></textarea>
               </div>
 
-              <!-- Reference Image URL -->
+              <!-- Reference Image Upload -->
               <div>
                 <label class="block text-sm font-semibold text-neutral-900 mb-2">
-                  REFERENCE IMAGE URL
+                  REFERENCE IMAGE
                 </label>
-                <input
-                  v-model="referenceImageUrl"
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                  class="input-field"
-                />
-                <p class="text-xs text-neutral-500 mt-1">Optional: Provide a reference image URL for this environment</p>
+
+                <!-- Upload Area -->
+                <div
+                  v-if="!imagePreviewUrl"
+                  class="relative border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-primary-600 transition-colors cursor-pointer"
+                  @click="$refs.fileInput.click()"
+                >
+                  <input
+                    ref="fileInput"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    class="hidden"
+                    @change="handleImageSelect"
+                  />
+
+                  <div class="flex flex-col items-center">
+                    <svg class="w-12 h-12 text-neutral-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p class="text-sm font-medium text-neutral-700 mb-1">
+                      Click to upload reference image
+                    </p>
+                    <p class="text-xs text-neutral-500">
+                      JPG, PNG, or WebP (max 5MB)
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Image Preview -->
+                <div v-else class="relative rounded-lg overflow-hidden border-2 border-neutral-200">
+                  <img
+                    :src="imagePreviewUrl"
+                    alt="Reference image preview"
+                    class="w-full h-64 object-cover"
+                  />
+
+                  <!-- Remove button -->
+                  <button
+                    @click="removeImage"
+                    type="button"
+                    class="absolute top-2 right-2 bg-error-600 hover:bg-error-700 text-white rounded-full p-2 shadow-lg transition-colors"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+
+                  <!-- Upload indicator -->
+                  <div v-if="isUploading" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <div class="text-white text-center max-w-xs px-4">
+                      <!-- Spinner -->
+                      <svg class="animate-spin h-10 w-10 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+
+                      <!-- Progress bar -->
+                      <div class="w-full bg-neutral-700 rounded-full h-2 mb-2">
+                        <div
+                          class="bg-primary-600 h-2 rounded-full transition-all duration-300 ease-out"
+                          :style="{ width: `${uploadProgress}%` }"
+                        ></div>
+                      </div>
+
+                      <!-- Status text with percentage -->
+                      <p class="text-sm font-medium mb-1">
+                        Uploading... {{ uploadProgress }}%
+                      </p>
+
+                      <!-- File size info -->
+                      <p class="text-xs text-neutral-300" v-if="selectedImage">
+                        {{ (selectedImage.size / 1024 / 1024).toFixed(2) }} MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <p class="text-xs text-neutral-500 mt-2">
+                  Optional: Upload a reference image for this environment
+                </p>
               </div>
             </div>
 
@@ -588,8 +952,8 @@ async function handleCreateAndActivate() {
               <h3 class="text-sm font-bold text-neutral-900 uppercase mb-4">Preview</h3>
               <div class="relative rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 4/3;">
                 <img
-                  v-if="referenceImageUrl"
-                  :src="referenceImageUrl"
+                  v-if="imagePreviewUrl"
+                  :src="imagePreviewUrl"
                   alt="Environment preview"
                   class="w-full h-full object-cover"
                 />

@@ -95,6 +95,78 @@ export function useN8nIntegration() {
     }
   }
 
+  async function sendToEndpoint(endpointUrl, apiToken, data) {
+    console.log('[sendToEndpoint] Called with:', {
+      url: endpointUrl,
+      hasToken: !!apiToken,
+      dataKeys: Object.keys(data || {})
+    })
+
+    if (!endpointUrl || !apiToken) {
+      console.error('[sendToEndpoint] Missing required parameters')
+      return {
+        success: false,
+        error: 'Endpoint URL and API token are required'
+      }
+    }
+
+    try {
+      console.log('[sendToEndpoint] Sending POST request...', {
+        url: endpointUrl,
+        payload: data
+      })
+
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(15000) // 15 second timeout
+      })
+
+      console.log('[sendToEndpoint] Response received:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      })
+
+      const result = {
+        success: response.ok,
+        status: response.status,
+        error: !response.ok ? `HTTP ${response.status}: ${response.statusText}` : null
+      }
+
+      // Try to parse response body if available
+      try {
+        const responseData = await response.json()
+        result.data = responseData
+        console.log('[sendToEndpoint] Response data:', responseData)
+      } catch {
+        // Response might not be JSON, that's okay
+        console.log('[sendToEndpoint] Response is not JSON')
+      }
+
+      return result
+
+    } catch (error) {
+      console.error('[sendToEndpoint] Error:', error)
+      let errorMessage = error.message
+
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        errorMessage = 'Request timeout (15s)'
+      } else if (error.message.includes('Failed to fetch')) {
+        errorMessage = 'Connection failed - Check URL and CORS settings'
+      }
+
+      return {
+        success: false,
+        error: errorMessage
+      }
+    }
+  }
+
   function validateUrl(url) {
     if (!url) return true // Optional field
     try {
@@ -110,6 +182,7 @@ export function useN8nIntegration() {
     testResults,
     testEndpoint,
     testAllEndpoints,
+    sendToEndpoint,
     validateUrl
   }
 }
