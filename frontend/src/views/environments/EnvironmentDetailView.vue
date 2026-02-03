@@ -1,24 +1,50 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useEnvironmentsStore } from '@/stores/environments'
 import { supabase } from '@/lib/supabase'
+import { useN8nIntegration } from '@/composables/useN8nIntegration'
+import { useToast } from '@/composables/useToast'
 import Sidebar from '@/components/common/Sidebar.vue'
 import AppHeader from '@/components/common/AppHeader.vue'
+import ImageLightbox from '@/components/common/ImageLightbox.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const environmentsStore = useEnvironmentsStore()
 
 const environmentId = route.params.id
 
+// n8n integration composables
+const { sendToEndpoint } = useN8nIntegration()
+const { showToast } = useToast()
+
+// n8n configuration
+const n8nConfig = ref(null)
+
 // State
-const environment = ref(null)
+const environment = computed(() => environmentsStore.currentEnvironment)
 const isLoading = ref(true)
 const error = ref(null)
 const showDeleteModal = ref(false)
 const isDeleting = ref(false)
 const isDummyData = ref(false)
+const isRegenerating = ref(false)
+
+// Image lightbox state
+const lightboxOpen = ref(false)
+const lightboxImage = ref(null)
+const lightboxInfo = ref(null)
+
+// Active result image computed
+const activeResultImage = computed(() => {
+  if (!environment.value?.result_images || environment.value.active_result_index < 0) {
+    return null
+  }
+  return environment.value.result_images[environment.value.active_result_index]
+})
 
 // Projects using this environment (mock data for now)
 const projectsUsingEnvironment = ref([
@@ -38,6 +64,19 @@ const projectsUsingEnvironment = ref([
 
 onMounted(async () => {
   await fetchEnvironment()
+
+  // Subscribe to realtime updates
+  if (authStore.user?.id) {
+    environmentsStore.subscribeToEnvironments(authStore.user.id)
+  }
+
+  // Load n8n configuration
+  await loadN8nConfig()
+})
+
+onUnmounted(() => {
+  // Clean up subscription
+  environmentsStore.unsubscribe()
 })
 
 async function fetchEnvironment() {
@@ -46,56 +85,43 @@ async function fetchEnvironment() {
   isDummyData.value = false
 
   try {
-    // First, check if environments table has any records
-    const { count, error: countError } = await supabase
-      .from('environments')
-      .select('*', { count: 'exact', head: true })
+    // Fetch from store
+    const data = await environmentsStore.fetchEnvironment(environmentId)
 
-    if (countError) throw countError
-
-    // If table is empty, show dummy data
-    if (count === 0) {
-      isDummyData.value = true
-      environment.value = {
-        id: environmentId,
-        name: 'Modern Home Office',
-        description: 'A clean, contemporary home office setup perfect for professional content creation.',
-        reference_image_url: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800&h=600&fit=crop',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        environment_specs: {
-          category: 'interior',
-          lighting_type: 'natural',
-          background_color: '#ffffff',
-          ambient_intensity: 70,
-          visual_style: 'modern',
-          mood_tone: 'professional',
-          wall_color: '#f5f5f5',
-          floor_type: 'wood',
-          include_windows: true,
-          include_props: true,
-          room_size: 'medium'
-        }
-      }
-    } else {
-      // Table has data, fetch the specific environment
-      const { data, error: fetchError } = await supabase
+    if (!data) {
+      // Check if table empty, show dummy data
+      const { count, error: countError } = await supabase
         .from('environments')
-        .select('*')
-        .eq('id', environmentId)
-        .single()
+        .select('*', { count: 'exact', head: true })
 
-      if (fetchError) {
-        // Check if it's a "not found" error
-        if (fetchError.code === 'PGRST116') {
-          error.value = 'Environment not found'
-          environment.value = null
-        } else {
-          throw fetchError
+      if (countError) throw countError
+
+      if (count === 0) {
+        isDummyData.value = true
+        environmentsStore.currentEnvironment = {
+          id: environmentId,
+          name: 'Modern Home Office',
+          description: 'A clean, contemporary home office setup perfect for professional content creation.',
+          reference_image_url: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800&h=600&fit=crop',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          environment_specs: {
+            category: 'interior',
+            lighting_type: 'natural',
+            background_color: '#ffffff',
+            ambient_intensity: 70,
+            visual_style: 'modern',
+            mood_tone: 'professional',
+            wall_color: '#f5f5f5',
+            floor_type: 'wood',
+            include_windows: true,
+            include_props: true,
+            room_size: 'medium'
+          }
         }
       } else {
-        environment.value = data
+        error.value = 'Environment not found'
       }
     }
   } catch (err) {
@@ -150,8 +176,155 @@ async function handleDelete() {
 }
 
 function handleEdit() {
-  // Navigate to edit page (to be created)
+  // Navigate to edit page
   router.push(`/environments/${environmentId}/edit`)
+}
+
+async function setActiveVariant(index) {
+  try {
+    await environmentsStore.setActiveResultImage(environmentId, index)
+    console.log('✅ Variant switched to index:', index)
+  } catch (err) {
+    console.error('Error switching variant:', err)
+    error.value = 'Failed to switch variant'
+  }
+}
+
+function openLightbox(imageUrl, info) {
+  lightboxImage.value = imageUrl
+  lightboxInfo.value = info
+  lightboxOpen.value = true
+}
+
+function closeLightbox() {
+  lightboxOpen.value = false
+}
+
+async function loadN8nConfig() {
+  try {
+    const { data, error: fetchError } = await supabase
+      .from('admin_settings')
+      .select('platform_settings')
+      .eq('id', 1)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    if (data?.platform_settings?.n8n_integration) {
+      n8nConfig.value = data.platform_settings.n8n_integration
+    }
+  } catch (err) {
+    console.error('Error fetching n8n config:', err)
+  }
+}
+
+async function sendToN8nDirectly(environmentData) {
+  console.log('[n8n] Sending regeneration request', {
+    environmentId: environmentData.id,
+    hasConfig: !!n8nConfig.value,
+    enabled: n8nConfig.value?.enabled,
+    endpointUrl: n8nConfig.value?.endpoints?.environments?.url,
+    currentVariantCount: environmentData.result_images?.length || 0
+  })
+
+  if (!n8nConfig.value?.enabled || !n8nConfig.value?.endpoints?.environments?.url) {
+    console.warn('[n8n] n8n not configured or disabled')
+    return { success: false, error: 'n8n not configured' }
+  }
+
+  const TIMEOUT_MS = 15000
+
+  try {
+    // Send to n8n directly (like creating a new environment)
+    // IMPORTANT: Do NOT send the result_images array to prevent duplication
+    const { result_images, active_result_index, ...environmentWithoutResults } = environmentData
+
+    const payload = {
+      event: 'environment_updated',
+      timestamp: new Date().toISOString(),
+      user_id: authStore.user.id,
+      user_email: authStore.user.email,
+      image_url: environmentData.reference_image_url || null,
+      callback_endpoint: n8nConfig.value?.callback_endpoint || null,
+      environment: environmentWithoutResults  // Send without result_images to avoid duplication
+    }
+
+    console.log('[n8n] Sending to n8n endpoint...', {
+      url: n8nConfig.value.endpoints.environments.url,
+      hasToken: !!n8nConfig.value.api_token,
+      imageUrl: payload.image_url,
+      environmentId: environmentWithoutResults.id,
+      hasResultImages: 'result_images' in payload.environment
+    })
+
+    const result = await Promise.race([
+      sendToEndpoint(
+        n8nConfig.value.endpoints.environments.url,
+        n8nConfig.value.api_token,
+        payload
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)
+      )
+    ])
+
+    console.log('[n8n] n8n response:', result)
+
+    if (!result.success) throw new Error(result.error)
+    return { success: true }
+
+  } catch (err) {
+    console.error('Error sending to n8n:', err)
+
+    if (err.message === 'timeout') {
+      showToast('Request timed out. The generation may still be processing.', 'warning', 5000)
+      return { success: false, error: 'timeout' }
+    }
+
+    showToast('Request failed. Please try again.', 'error', 0)
+    return { success: false, error: err.message }
+  }
+}
+
+async function handleTryAgain() {
+  if (!environment.value) return
+
+  // Validate that we have the necessary data
+  if (!environment.value.reference_image_url) {
+    error.value = 'No reference image available for regeneration'
+    showToast('Cannot regenerate without a reference image', 'error', 3000)
+    return
+  }
+
+  if (isRegenerating.value) {
+    showToast('Already regenerating...', 'warning', 2000)
+    return
+  }
+
+  isRegenerating.value = true
+  error.value = null
+
+  try {
+    console.log('🔄 Regenerating with same parameters:', environment.value.environment_specs)
+
+    // Send directly to n8n (like creating a new environment)
+    const result = await sendToN8nDirectly(environment.value)
+
+    if (result.success) {
+      showToast('Regeneration started! New variant will be added when complete.', 'success', 4000)
+    } else {
+      throw new Error(result.error || 'Failed to start regeneration')
+    }
+  } catch (err) {
+    console.error('Error triggering regeneration:', err)
+    error.value = 'Failed to start regeneration'
+    showToast('Failed to start regeneration. Please try again.', 'error', 0)
+  } finally {
+    // Reset after a delay to allow the generation to start
+    setTimeout(() => {
+      isRegenerating.value = false
+    }, 2000)
+  }
 }
 
 function getStatusBadgeClass(status) {
@@ -328,76 +501,134 @@ const usageCount = computed(() => projectsUsingEnvironment.value.length)
             <div class="card">
               <h2 class="text-lg font-bold text-neutral-900 mb-4">Images</h2>
 
-              <!-- Side-by-Side Comparison (when both exist) -->
-              <div
-                v-if="environment.reference_image_url && environment.result_image_url"
-                class="grid grid-cols-1 md:grid-cols-2 gap-4"
-              >
-                <!-- Reference Image -->
+              <!-- Side-by-Side Comparison -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Reference Image (Left) -->
                 <div>
                   <label class="block text-xs font-semibold text-neutral-600 mb-2 uppercase">
                     Reference (Before)
                   </label>
                   <div class="relative rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 4/3;">
                     <img
+                      v-if="environment.reference_image_url"
                       :src="environment.reference_image_url"
                       :alt="`${environment.name} - Reference`"
-                      class="w-full h-full object-cover"
+                      @click="openLightbox(environment.reference_image_url, 'Reference Image (Before)')"
+                      class="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                     />
+                    <div v-else class="w-full h-full flex items-center justify-center">
+                      <div class="text-center text-neutral-400">
+                        <svg class="w-16 h-16 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <p class="text-sm">No reference image</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Result Image -->
+                <!-- Active Result Image (Right) -->
                 <div>
                   <label class="block text-xs font-semibold text-neutral-600 mb-2 uppercase">
-                    AI Result (After)
+                    AI Result (After) - {{ environment.result_images?.length || 0 }} variant{{ environment.result_images?.length !== 1 ? 's' : '' }}
                   </label>
-                  <div class="relative rounded-lg overflow-hidden bg-neutral-100 ring-2 ring-success-500" style="aspect-ratio: 4/3;">
+
+                  <!-- Main Active Image -->
+                  <div
+                    v-if="activeResultImage"
+                    class="relative rounded-lg overflow-hidden bg-neutral-100 ring-2 ring-success-500 mb-3"
+                    style="aspect-ratio: 4/3;"
+                  >
                     <img
-                      :src="environment.result_image_url"
+                      :src="activeResultImage.url"
                       :alt="`${environment.name} - Result`"
-                      class="w-full h-full object-cover"
+                      @click="openLightbox(
+                        activeResultImage.url,
+                        `AI Result (After) - Variant ${environment.active_result_index + 1} - ${formatDate(activeResultImage.created_at)}`
+                      )"
+                      class="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                     />
                     <div class="absolute top-2 right-2">
                       <span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold tracking-wide bg-success-500 text-white">
-                        AI GENERATED
+                        ACTIVE
                       </span>
+                    </div>
+                    <div class="absolute bottom-2 left-2 text-xs text-white bg-black/60 px-2 py-1 rounded backdrop-blur">
+                      {{ formatDate(activeResultImage.created_at) }}
+                    </div>
+                  </div>
+
+                  <!-- Variant Thumbnail Strip -->
+                  <div
+                    v-if="environment.result_images && environment.result_images.length > 1"
+                    class="grid grid-cols-4 gap-2"
+                  >
+                    <div
+                      v-for="(image, index) in environment.result_images"
+                      :key="image.created_at || `variant-${index}`"
+                      @click="setActiveVariant(index)"
+                      :class="[
+                        'relative rounded-lg overflow-hidden cursor-pointer transition-all',
+                        index === environment.active_result_index
+                          ? 'ring-2 ring-success-500 scale-105'
+                          : 'ring-1 ring-neutral-200 hover:ring-neutral-400 opacity-70 hover:opacity-100'
+                      ]"
+                      style="aspect-ratio: 4/3;"
+                    >
+                      <img
+                        :src="image.url"
+                        :alt="`Variant ${index + 1}`"
+                        class="w-full h-full object-cover"
+                      />
+                      <div
+                        v-if="index === environment.active_result_index"
+                        class="absolute inset-0 bg-success-500/20 flex items-center justify-center"
+                      >
+                        <svg class="w-6 h-6 text-white drop-shadow" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- No Results State -->
+                  <div
+                    v-if="!activeResultImage"
+                    class="relative rounded-lg overflow-hidden bg-neutral-100 flex items-center justify-center"
+                    style="aspect-ratio: 4/3;"
+                  >
+                    <div class="text-center text-neutral-400">
+                      <svg class="w-16 h-16 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <p class="text-sm">No result generated yet</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <!-- Single Image View (when only one exists) -->
-              <div v-else class="relative rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 16/9;">
-                <img
-                  v-if="environment.result_image_url || environment.reference_image_url"
-                  :src="environment.result_image_url || environment.reference_image_url"
-                  :alt="environment.name"
-                  class="w-full h-full object-cover"
-                />
-                <div v-else class="w-full h-full flex items-center justify-center">
-                  <div class="text-center text-neutral-400">
-                    <svg class="w-16 h-16 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <p class="text-sm">No preview image</p>
-                  </div>
-                </div>
-
-                <!-- Image Type Label -->
-                <div
-                  v-if="environment.result_image_url || environment.reference_image_url"
-                  class="absolute top-3 left-3"
+              <!-- Try Again Button -->
+              <div class="mt-4 flex gap-3">
+                <button
+                  @click="handleTryAgain"
+                  :disabled="isRegenerating"
+                  class="btn-secondary"
                 >
-                  <span
-                    :class="[
-                      'inline-flex items-center px-2.5 py-1 rounded text-xs font-bold tracking-wide',
-                      environment.result_image_url ? 'bg-success-500 text-white' : 'bg-neutral-700 text-white'
-                    ]"
-                  >
-                    {{ environment.result_image_url ? 'AI RESULT' : 'REFERENCE' }}
-                  </span>
-                </div>
+                  <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {{ isRegenerating ? 'Regenerating...' : 'Try Again' }}
+                </button>
+
+                <button
+                  @click="handleEdit"
+                  class="btn-secondary"
+                >
+                  <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit & Regenerate
+                </button>
               </div>
             </div>
 
@@ -698,6 +929,14 @@ const usageCount = computed(() => projectsUsingEnvironment.value.length)
       </div>
     </div>
   </div>
+
+  <!-- Image Lightbox -->
+  <ImageLightbox
+    :is-open="lightboxOpen"
+    :image-url="lightboxImage"
+    :image-info="lightboxInfo"
+    @close="closeLightbox"
+  />
 </template>
 
 <style scoped>

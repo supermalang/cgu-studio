@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useEnvironmentsStore } from '@/stores/environments'
 import { supabase } from '@/lib/supabase'
 import { useN8nIntegration } from '@/composables/useN8nIntegration'
 import { useImageUpload } from '@/composables/useImageUpload'
@@ -13,35 +14,36 @@ import AppHeader from '@/components/common/AppHeader.vue'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const environmentsStore = useEnvironmentsStore()
+
+const environmentId = route.params.id
 const { sendToEndpoint } = useN8nIntegration()
 const { showToast } = useToast()
 const {
   isUploading,
   uploadProgress,
+  uploadError,
   validateImage,
+  uploadImage,
   uploadImageWithRetry
 } = useImageUpload()
 const {
   createJob,
   subscribeToJob,
+  resubscribeToPendingJobs,
   getExistingJob
 } = useJobTracking()
 
-const environmentId = route.params.id
-
 // n8n configuration
 const n8nConfig = ref(null)
-
-// State
-const isLoading = ref(false)
-const error = ref(null)
 
 // Form data
 const environmentName = ref('')
 const description = ref('')
 const selectedImage = ref(null)
 const imagePreviewUrl = ref(null)
-const currentReferenceImageUrl = ref(null) // Track existing image
+const uploadedImageUrl = ref(null)
+const currentReferenceImageUrl = ref(null) // For edit mode - stores existing reference image
 const category = ref('interior')
 const lightingType = ref('natural')
 const backgroundColor = ref('#ffffff')
@@ -52,72 +54,84 @@ const moodTone = ref(null)
 // Additional environment specs
 const wallColor = ref('#f5f5f5')
 const floorType = ref('wood')
-const roomSize = ref('medium')
 const includeWindows = ref(true)
 const includeProps = ref(true)
+const roomSize = ref('medium')
 
-// Dropdown options (same as create view)
+// UI state
+const isLoading = ref(false)
+const isProcessing = ref(false)
+const error = ref(null)
+const showImageUploader = ref(false)
+const creationStep = ref(null) // null | 'uploading' | 'saving' | 'completed'
+
+// Options
 const categoryOptions = [
-  { value: 'interior', label: 'Interior', icon: '🏠' },
-  { value: 'outdoor', label: 'Outdoor', icon: '🌳' },
-  { value: 'studio', label: 'Studio', icon: '🎬' }
+  { value: 'interior', label: 'Interior', icon: '🏠', description: 'Indoor spaces like offices, homes' },
+  { value: 'exterior', label: 'Exterior', icon: '🌳', description: 'Outdoor settings like parks, streets' },
+  { value: 'commercial', label: 'Commercial', icon: '🏬', description: 'Retail stores, cafes, shops' },
+  { value: 'vehicle', label: 'Vehicle', icon: '🚗', description: 'Car interiors, transportation' }
 ]
 
 const lightingOptions = [
-  { value: 'natural', label: 'Natural', icon: '☀️', description: 'Daylight' },
-  { value: 'studio', label: 'Studio', icon: '💡', description: 'Professional' },
-  { value: 'ambient', label: 'Ambient', icon: '🌙', description: 'Soft' },
-  { value: 'dramatic', label: 'Dramatic', icon: '⚡', description: 'High contrast' }
+  { value: 'natural', label: 'Natural', icon: '☀️', description: 'Soft daylight, realistic' },
+  { value: 'studio', label: 'Studio', icon: '💡', description: 'Professional, controlled' },
+  { value: 'ambient', label: 'Ambient', icon: '🌙', description: 'Mood lighting, atmospheric' },
+  { value: 'bright', label: 'Bright', icon: '✨', description: 'High-key, energetic' }
 ]
 
 const visualStyleOptions = [
-  { value: 'modern', label: 'Modern' },
-  { value: 'minimalist', label: 'Minimalist' },
-  { value: 'vintage', label: 'Vintage' },
-  { value: 'industrial', label: 'Industrial' },
-  { value: 'cozy', label: 'Cozy' }
+  { value: 'modern', label: 'Modern', description: 'Clean, minimalist aesthetic' },
+  { value: 'classic', label: 'Classic', description: 'Timeless, traditional design' },
+  { value: 'industrial', label: 'Industrial', description: 'Raw, urban elements' },
+  { value: 'cozy', label: 'Cozy', description: 'Warm, comfortable atmosphere' },
+  { value: 'luxury', label: 'Luxury', description: 'Premium, high-end look' }
 ]
 
 const moodToneOptions = [
   { value: 'professional', label: 'Professional', emoji: '💼' },
-  { value: 'warm', label: 'Warm', emoji: '🔥' },
-  { value: 'cool', label: 'Cool', emoji: '❄️' },
+  { value: 'casual', label: 'Casual', emoji: '😊' },
   { value: 'energetic', label: 'Energetic', emoji: '⚡' },
-  { value: 'calm', label: 'Calm', emoji: '🧘' }
+  { value: 'calm', label: 'Calm', emoji: '🌊' },
+  { value: 'warm', label: 'Warm', emoji: '🔥' }
 ]
 
 const roomSizeOptions = [
-  { value: 'small', label: 'Small (< 100 sq ft)' },
-  { value: 'medium', label: 'Medium (100-300 sq ft)' },
-  { value: 'large', label: 'Large (> 300 sq ft)' }
+  { value: 'small', label: 'Small', description: 'Intimate, close-up' },
+  { value: 'medium', label: 'Medium', description: 'Balanced space' },
+  { value: 'large', label: 'Large', description: 'Spacious, open' }
 ]
 
 const floorTypeOptions = [
   { value: 'wood', label: 'Wood', emoji: '🪵' },
-  { value: 'carpet', label: 'Carpet', emoji: '🧶' },
   { value: 'tile', label: 'Tile', emoji: '⬜' },
-  { value: 'concrete', label: 'Concrete', emoji: '🏗️' }
+  { value: 'carpet', label: 'Carpet', emoji: '🟫' },
+  { value: 'concrete', label: 'Concrete', emoji: '⬛' },
+  { value: 'marble', label: 'Marble', emoji: '⚪' }
 ]
 
-// Fetch existing environment
+const characterCount = computed(() => description.value.length)
+const maxCharacters = 500
+
+// Fetch existing environment data for editing
 async function fetchEnvironment() {
   isLoading.value = true
   error.value = null
 
   try {
-    const { data, error: fetchError } = await supabase
-      .from('environments')
-      .select('*')
-      .eq('id', environmentId)
-      .single()
+    const data = await environmentsStore.fetchEnvironment(environmentId)
 
-    if (fetchError) throw fetchError
+    if (!data) {
+      throw new Error('Environment not found')
+    }
 
-    // Populate form
+    // Populate ALL form fields with existing data
     environmentName.value = data.name
     description.value = data.description || ''
     currentReferenceImageUrl.value = data.reference_image_url
+    uploadedImageUrl.value = data.reference_image_url // Use existing as uploaded
 
+    // Populate environment specs
     const specs = data.environment_specs || {}
     category.value = specs.category || 'interior'
     lightingType.value = specs.lighting_type || 'natural'
@@ -127,18 +141,59 @@ async function fetchEnvironment() {
     moodTone.value = specs.mood_tone || null
     wallColor.value = specs.wall_color || '#f5f5f5'
     floorType.value = specs.floor_type || 'wood'
+    includeWindows.value = specs.include_windows !== undefined ? specs.include_windows : true
+    includeProps.value = specs.include_props !== undefined ? specs.include_props : true
     roomSize.value = specs.room_size || 'medium'
-    includeWindows.value = specs.include_windows ?? true
-    includeProps.value = specs.include_props ?? true
+
+    console.log('✅ Environment data loaded for editing:', data.name)
   } catch (err) {
     console.error('Error fetching environment:', err)
     error.value = 'Failed to load environment'
+    showToast('Failed to load environment', 'error', 3000)
   } finally {
     isLoading.value = false
   }
 }
 
-// Handle reference image change
+// Fetch n8n configuration and environment data on mount
+onMounted(async () => {
+  // Load existing environment data first
+  await fetchEnvironment()
+
+  // Then fetch n8n config
+  try {
+    const { data, error: fetchError } = await supabase
+      .from('admin_settings')
+      .select('platform_settings')
+      .eq('id', 1)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    if (data?.platform_settings?.n8n_integration) {
+      n8nConfig.value = data.platform_settings.n8n_integration
+    }
+  } catch (err) {
+    console.error('Error fetching n8n config:', err)
+  }
+
+  // Resubscribe to any pending jobs on mount
+  await resubscribeToPendingJobs()
+})
+
+function validateForm() {
+  const errors = []
+
+  if (!environmentName.value.trim()) {
+    errors.push('Environment name is required')
+  }
+  if (ambientIntensity.value < 0 || ambientIntensity.value > 100) {
+    errors.push('Ambient intensity must be between 0-100')
+  }
+
+  return errors
+}
+
 function handleImageSelect(event) {
   const file = event.target.files[0]
   if (!file) return
@@ -146,6 +201,8 @@ function handleImageSelect(event) {
   const validation = validateImage(file)
   if (!validation.valid) {
     error.value = validation.error
+    selectedImage.value = null
+    imagePreviewUrl.value = null
     return
   }
 
@@ -160,35 +217,156 @@ function removeImage() {
   }
   selectedImage.value = null
   imagePreviewUrl.value = null
+  uploadedImageUrl.value = null
 }
 
-function handleCancel() {
-  router.push(`/environments/${environmentId}`)
+function handleJobUpdate(job) {
+  console.log('Job updated:', job)
+
+  if (job.status === 'completed') {
+    isProcessing.value = false
+    console.log('✅ n8n job completed, environment should auto-update via realtime')
+
+    // Optional: Force refresh after delay if realtime is slow
+    setTimeout(async () => {
+      await environmentsStore.fetchEnvironments()
+      console.log('🔄 Forced environment refresh as fallback')
+    }, 2000)
+  } else if (job.status === 'failed') {
+    isProcessing.value = false
+    console.error('❌ n8n job failed:', job.error_message)
+  }
 }
 
-// Update environment and trigger n8n
-async function handleUpdate() {
-  if (!environmentName.value.trim()) {
-    error.value = 'Environment name is required'
+async function sendToN8nWithTracking(environmentData) {
+  console.log('[n8n] sendToN8nWithTracking called', {
+    environmentId: environmentData.id,
+    hasConfig: !!n8nConfig.value,
+    enabled: n8nConfig.value?.enabled,
+    endpointUrl: n8nConfig.value?.endpoints?.environments?.url
+  })
+
+  if (!n8nConfig.value?.enabled || !n8nConfig.value?.endpoints?.environments?.url) {
+    console.warn('[n8n] n8n not configured or disabled')
+    return { success: false, error: 'n8n not configured' }
+  }
+
+  const TIMEOUT_MS = 15000
+
+  try {
+    // Check for existing job
+    console.log('[n8n] Checking for existing job...')
+    const existingJob = await getExistingJob(environmentData.id)
+
+    if (existingJob && existingJob.status === 'generating') {
+      console.log('[n8n] Existing job found, subscribing', existingJob.id)
+      subscribeToJob(existingJob.id, handleJobUpdate)
+      showToast('Generation already in progress...', 'info', 3000)
+      return { success: true, jobId: existingJob.id }
+    }
+
+    // Create new job record
+    console.log('[n8n] Creating new job record...')
+    const job = await createJob({
+      workflow_type: 'environment_update',
+      environment_id: environmentData.id
+    })
+    console.log('[n8n] Job created:', job.id)
+
+    // Subscribe to job updates
+    subscribeToJob(job.id, handleJobUpdate)
+
+    // Send to n8n with timeout
+    const payload = {
+      event: 'environment_updated',
+      timestamp: new Date().toISOString(),
+      user_id: authStore.user.id,
+      user_email: authStore.user.email,
+      job_id: job.id,
+      image_url: environmentData.reference_image_url || null,
+      callback_endpoint: n8nConfig.value?.callback_endpoint || null,
+      environment: environmentData
+    }
+
+    console.log('[n8n] Sending to n8n endpoint...', {
+      url: n8nConfig.value.endpoints.environments.url,
+      hasToken: !!n8nConfig.value.api_token,
+      jobId: job.id,
+      imageUrl: payload.image_url
+    })
+
+    const result = await Promise.race([
+      sendToEndpoint(
+        n8nConfig.value.endpoints.environments.url,
+        n8nConfig.value.api_token,
+        payload
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)
+      )
+    ])
+
+    console.log('[n8n] n8n response:', result)
+
+    if (!result.success) throw new Error(result.error)
+    return { success: true, jobId: job.id }
+
+  } catch (err) {
+    console.error('Error sending to n8n:', err)
+
+    const existingJob = await getExistingJob(environmentData.id)
+
+    if (err.message === 'timeout') {
+      if (existingJob) {
+        showToast('Request timed out, but job is being processed.', 'warning', 5000)
+        subscribeToJob(existingJob.id, handleJobUpdate)
+        return { success: true, jobId: existingJob.id }
+      } else {
+        showToast('Request timed out. Please retry.', 'error', 0)
+        return { success: false, error: 'timeout' }
+      }
+    }
+
+    if (existingJob) {
+      showToast('Request failed. Please retry.', 'error', 0)
+    }
+
+    return { success: false, error: err.message }
+  }
+}
+
+async function handleSaveDraft() {
+  if (isProcessing.value) {
+    showToast('Already processing...', 'warning', 2000)
+    return
+  }
+
+  const validationErrors = validateForm()
+  if (validationErrors.length > 0) {
+    error.value = validationErrors.join('. ')
     return
   }
 
   isLoading.value = true
+  isProcessing.value = true
   error.value = null
 
   try {
-    // Step 1: Upload new reference image if changed
-    let finalImageUrl = currentReferenceImageUrl.value
+    // Step 1: Upload reference image FIRST (if selected)
+    let finalImageUrl = null
 
     if (selectedImage.value) {
       const uploadResult = await uploadImageWithRetry(selectedImage.value, 'Environments', 'reference')
+
       if (!uploadResult.success) {
         throw new Error(uploadResult.error || 'Image upload failed')
       }
+
       finalImageUrl = uploadResult.url
+      uploadedImageUrl.value = finalImageUrl
     }
 
-    // Step 2: Update environment (clear result_image_url to trigger regeneration)
+    // Step 2: Create environment with uploaded image URL
     const environmentSpecs = {
       category: category.value,
       lighting_type: lightingType.value,
@@ -198,107 +376,167 @@ async function handleUpdate() {
       mood_tone: moodTone.value,
       wall_color: wallColor.value,
       floor_type: floorType.value,
-      room_size: roomSize.value,
       include_windows: includeWindows.value,
-      include_props: includeProps.value
+      include_props: includeProps.value,
+      room_size: roomSize.value
     }
 
-    const { data: updatedEnvironment, error: updateError } = await supabase
+    const { data: createdEnvironment, error: createError} = await supabase
       .from('environments')
-      .update({
+      .insert({
+        user_id: authStore.user.id,
         name: environmentName.value,
         description: description.value || null,
         reference_image_url: finalImageUrl,
-        result_image_url: null, // Clear to indicate needs regeneration
         environment_specs: environmentSpecs,
-        updated_by: authStore.user.id,
-        updated_at: new Date().toISOString()
+        is_active: true,
+        created_by: authStore.user.id,
+        updated_by: authStore.user.id
       })
-      .eq('id', environmentId)
-      .select('*')
+      .select('id, name, description, reference_image_url, environment_specs')
       .single()
 
-    if (updateError) throw updateError
+    if (createError) throw createError
 
-    // Step 3: Trigger n8n workflow (same as create)
-    sendToN8nWithTracking(updatedEnvironment).catch(err => {
-      console.error('n8n error (non-blocking):', err)
+    // Step 3: Send to n8n with job tracking (non-blocking)
+    console.log('Environment saved, sending to n8n...', {
+      environmentId: createdEnvironment.id,
+      hasImageUrl: !!createdEnvironment.reference_image_url,
+      imageUrl: createdEnvironment.reference_image_url,
+      n8nEnabled: n8nConfig.value?.enabled,
+      n8nEndpoint: n8nConfig.value?.endpoints?.environments?.url
     })
 
-    showToast('Environment updated! AI regeneration started.', 'success', 3000)
-    router.push(`/environments/${environmentId}`)
+    sendToN8nWithTracking(createdEnvironment).catch(err => {
+      console.error('n8n tracking error (non-blocking):', err)
+    })
+
+    // Step 4: Show success and redirect
+    showToast('Environment saved successfully!', 'success', 3000)
+    router.push('/environments')
+
   } catch (err) {
-    console.error('Error updating environment:', err)
-    error.value = err.message || 'Failed to update environment'
+    console.error('Error creating environment:', err)
+    error.value = err.message || 'Failed to create environment'
+    isProcessing.value = false
   } finally {
     isLoading.value = false
   }
 }
 
-// Send to n8n with job tracking
-async function sendToN8nWithTracking(environmentData) {
+async function handleUpdate() {
+  if (isProcessing.value) {
+    showToast('Already processing...', 'warning', 2000)
+    return
+  }
+
+  const validationErrors = validateForm()
+  if (validationErrors.length > 0) {
+    error.value = validationErrors.join('. ')
+    return
+  }
+
+  isLoading.value = true
+  isProcessing.value = true
+  error.value = null
+
   try {
-    // Fetch n8n webhook config
-    const { data: config, error: configError } = await supabase
-      .from('admin_settings')
-      .select('value')
-      .eq('key', 'n8n_webhook_url')
+    // Step 1: Upload new image if selected, otherwise keep existing
+    let finalImageUrl = currentReferenceImageUrl.value
+
+    if (selectedImage.value) {
+      creationStep.value = 'uploading'
+
+      const uploadResult = await uploadImageWithRetry(selectedImage.value, 'Environments', 'reference')
+
+      if (!uploadResult.success) {
+        // Enhanced error messages
+        let errorMsg = 'Image upload failed'
+        if (uploadResult.error.includes('timeout')) {
+          errorMsg = 'Upload timed out. Please check your connection and try again.'
+        } else if (uploadResult.error.includes('storage quota')) {
+          errorMsg = 'Storage limit reached. Please contact support.'
+        } else {
+          errorMsg = uploadResult.error
+        }
+        throw new Error(errorMsg)
+      }
+
+      finalImageUrl = uploadResult.url
+      uploadedImageUrl.value = finalImageUrl
+    }
+
+    // Step 2: Update environment with new data
+    creationStep.value = 'saving'
+    const environmentSpecs = {
+      category: category.value,
+      lighting_type: lightingType.value,
+      background_color: backgroundColor.value,
+      ambient_intensity: ambientIntensity.value,
+      visual_style: visualStyle.value,
+      mood_tone: moodTone.value,
+      wall_color: wallColor.value,
+      floor_type: floorType.value,
+      include_windows: includeWindows.value,
+      include_props: includeProps.value,
+      room_size: roomSize.value
+    }
+
+    const { data: updatedEnvironment, error: updateError} = await supabase
+      .from('environments')
+      .update({
+        name: environmentName.value,
+        description: description.value || null,
+        reference_image_url: finalImageUrl,
+        environment_specs: environmentSpecs,
+        updated_by: authStore.user.id,
+        updated_at: new Date().toISOString()
+        // NOTE: DON'T clear result_images array - n8n will append new variant
+      })
+      .eq('id', environmentId)
+      .select('id, name, description, reference_image_url, environment_specs, result_images, active_result_index')
       .single()
 
-    if (configError || !config?.value) {
-      console.warn('n8n webhook not configured, skipping')
-      return
-    }
+    if (updateError) throw updateError
 
-    n8nConfig.value = config.value
+    // Step 3: Send to n8n with job tracking for regeneration (non-blocking)
+    console.log('Environment updated, triggering n8n regeneration...', {
+      environmentId: updatedEnvironment.id,
+      hasImageUrl: !!updatedEnvironment.reference_image_url,
+      imageUrl: updatedEnvironment.reference_image_url,
+      existingVariants: updatedEnvironment.result_images?.length || 0,
+      n8nEnabled: n8nConfig.value?.enabled,
+      n8nEndpoint: n8nConfig.value?.endpoints?.environments?.url
+    })
 
-    // Check for existing incomplete job
-    const existingJob = await getExistingJob(environmentData.id)
+    sendToN8nWithTracking(updatedEnvironment).catch(err => {
+      console.error('n8n tracking error (non-blocking):', err)
+    })
 
-    if (existingJob) {
-      console.log('Resuming existing job:', existingJob.id)
-    } else {
-      // Create job record
-      const job = await createJob(environmentData.id, 'environment_generation', {
-        environment_name: environmentData.name,
-        reference_image_url: environmentData.reference_image_url,
-        environment_specs: environmentData.environment_specs
-      })
+    // Step 4: Show success and redirect to detail page
+    creationStep.value = 'completed'
+    showToast('Environment updated! New variant generating...', 'success', 3000)
 
-      console.log('Created new job:', job.id)
+    // Small delay so user sees success state
+    setTimeout(() => {
+      router.push(`/environments/${environmentId}`)
+    }, 500)
 
-      // Subscribe to job updates
-      subscribeToJob(job.id, (updatedJob) => {
-        console.log('Job update:', updatedJob.status)
-      })
-    }
-
-    // Send to n8n
-    const payload = {
-      environment_id: environmentData.id,
-      environment_name: environmentData.name,
-      reference_image_url: environmentData.reference_image_url,
-      environment_specs: environmentData.environment_specs,
-      created_by: authStore.user.id
-    }
-
-    await sendToEndpoint(n8nConfig.value, payload)
-    console.log('n8n webhook triggered successfully')
   } catch (err) {
-    console.error('Error in n8n tracking:', err)
+    console.error('Error updating environment:', err)
+    error.value = err.message || 'Failed to update environment'
+    isProcessing.value = false
+  } finally {
+    isLoading.value = false
+    creationStep.value = null
   }
 }
 
-function formatDate(dateString) {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  })
-}
-
-onMounted(() => {
-  fetchEnvironment()
+// Cleanup on unmount
+onUnmounted(() => {
+  if (imagePreviewUrl.value) {
+    URL.revokeObjectURL(imagePreviewUrl.value)
+  }
 })
 </script>
 
@@ -307,15 +545,9 @@ onMounted(() => {
     <Sidebar />
     <AppHeader />
 
+    <!-- Main Content -->
     <main class="ml-64 px-6 py-8">
-      <!-- Loading State -->
-      <div v-if="isLoading && !environmentName" class="text-center py-12">
-        <div class="loading-spinner mx-auto"></div>
-        <p class="mt-4 text-neutral-600">Loading environment...</p>
-      </div>
-
-      <!-- Edit Form -->
-      <div v-else class="max-w-7xl mx-auto">
+      <div class="max-w-6xl mx-auto">
         <!-- Breadcrumb -->
         <div class="flex items-center gap-2 mb-6 text-sm text-neutral-500">
           <router-link to="/environments" class="hover:text-neutral-900">ENVIRONMENTS</router-link>
@@ -328,25 +560,51 @@ onMounted(() => {
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
-          <span class="text-neutral-900 font-medium">Edit</span>
+          <span class="text-neutral-900 font-medium">EDIT</span>
         </div>
 
-        <!-- Header Section -->
-        <div class="flex items-start justify-between mb-8">
-          <div class="flex-1">
+        <!-- Page Header -->
+        <div class="flex items-center justify-between mb-8">
+          <div>
             <h1 class="text-4xl font-black text-neutral-900 mb-2">Edit Environment</h1>
-            <p class="text-base text-neutral-600">Update environment settings and trigger AI regeneration</p>
+            <p class="text-base text-neutral-600">
+              Update settings and regenerate with new parameters.
+            </p>
           </div>
 
           <div class="flex items-center gap-3">
-            <button @click="handleCancel" class="btn-secondary" :disabled="isLoading">
+            <button
+              @click="router.push('/environments')"
+              class="btn-secondary"
+            >
               Cancel
             </button>
-            <button @click="handleUpdate" class="btn-primary" :disabled="isLoading">
-              <svg v-if="!isLoading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button
+              @click="handleSaveDraft"
+              :disabled="isLoading"
+              class="btn-secondary"
+            >
+              Save Draft
+            </button>
+            <button
+              @click="handleUpdate"
+              :disabled="isLoading || !environmentName"
+              class="btn-primary flex items-center gap-2 shadow-lg shadow-primary-600/40"
+            >
+              <!-- Show different icon based on state -->
+              <svg v-if="creationStep === 'uploading' || creationStep === 'saving'"
+                   class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
-              {{ isLoading ? 'Updating...' : 'Update & Regenerate' }}
+
+              <!-- Show different text based on state -->
+              <span v-if="creationStep === 'uploading'">Uploading Image...</span>
+              <span v-else-if="creationStep === 'saving'">Updating Environment...</span>
+              <span v-else>Update & Regenerate</span>
             </button>
           </div>
         </div>
@@ -357,9 +615,296 @@ onMounted(() => {
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Left Column - Form -->
+          <!-- Left Column - Main Form -->
           <div class="lg:col-span-2 space-y-6">
-            <!-- Reference Image Upload -->
+            <!-- Basic Information Section -->
+            <div class="card">
+              <div class="flex items-start gap-3 mb-6">
+                <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="text-xl font-bold text-neutral-900">Basic Information</h2>
+                  <p class="text-sm text-neutral-600">Define the name and purpose of your environment.</p>
+                </div>
+              </div>
+
+              <!-- Environment Name -->
+              <div class="mb-6">
+                <label class="block text-sm font-semibold text-neutral-900 mb-2">
+                  ENVIRONMENT NAME *
+                </label>
+                <input
+                  v-model="environmentName"
+                  type="text"
+                  placeholder="e.g., Modern Home Office"
+                  class="input-field"
+                />
+              </div>
+
+              <!-- Description -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-sm font-semibold text-neutral-900">
+                    DESCRIPTION
+                  </label>
+                  <span class="text-xs text-neutral-500">{{ characterCount }} / {{ maxCharacters }} CHARACTERS</span>
+                </div>
+                <textarea
+                  v-model="description"
+                  :maxlength="maxCharacters"
+                  rows="4"
+                  placeholder="Describe the environment, its purpose, or any specific details..."
+                  class="input-field resize-none"
+                ></textarea>
+              </div>
+
+              <!-- Reference Image Upload -->
+              <div>
+                <label class="block text-sm font-semibold text-neutral-900 mb-2">
+                  REFERENCE IMAGE
+                </label>
+
+                <!-- Upload Area -->
+                <div
+                  v-if="!imagePreviewUrl"
+                  class="relative border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-primary-600 transition-colors cursor-pointer"
+                  @click="$refs.fileInput.click()"
+                >
+                  <input
+                    ref="fileInput"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    class="hidden"
+                    @change="handleImageSelect"
+                  />
+
+                  <div class="flex flex-col items-center">
+                    <svg class="w-12 h-12 text-neutral-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p class="text-sm font-medium text-neutral-700 mb-1">
+                      Click to upload reference image
+                    </p>
+                    <p class="text-xs text-neutral-500">
+                      JPG, PNG, or WebP (max 5MB)
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Image Preview -->
+                <div v-else class="relative rounded-lg overflow-hidden border-2 border-neutral-200">
+                  <img
+                    :src="imagePreviewUrl"
+                    alt="Reference image preview"
+                    class="w-full h-64 object-cover"
+                  />
+
+                  <!-- Remove button -->
+                  <button
+                    @click="removeImage"
+                    type="button"
+                    class="absolute top-2 right-2 bg-error-600 hover:bg-error-700 text-white rounded-full p-2 shadow-lg transition-colors"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+
+                  <!-- Upload indicator -->
+                  <div v-if="isUploading" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <div class="text-white text-center max-w-xs px-4">
+                      <!-- Spinner -->
+                      <svg class="animate-spin h-10 w-10 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+
+                      <!-- Progress bar -->
+                      <div class="w-full bg-neutral-700 rounded-full h-2 mb-2">
+                        <div
+                          class="bg-primary-600 h-2 rounded-full transition-all duration-300 ease-out"
+                          :style="{ width: `${uploadProgress}%` }"
+                        ></div>
+                      </div>
+
+                      <!-- Status text with percentage -->
+                      <p class="text-sm font-medium mb-1">
+                        Uploading... {{ uploadProgress }}%
+                      </p>
+
+                      <!-- File size info -->
+                      <p class="text-xs text-neutral-300" v-if="selectedImage">
+                        {{ (selectedImage.size / 1024 / 1024).toFixed(2) }} MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <p class="text-xs text-neutral-500 mt-2">
+                  Optional: Upload a reference image for this environment
+                </p>
+              </div>
+            </div>
+
+            <!-- Environment Type Section -->
+            <div class="card">
+              <div class="flex items-start gap-3 mb-6">
+                <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="text-xl font-bold text-neutral-900">Environment Type</h2>
+                  <p class="text-sm text-neutral-600">Select the category and style for this environment.</p>
+                </div>
+              </div>
+
+              <!-- Category Selection -->
+              <div class="mb-6">
+                <label class="block text-sm font-semibold text-neutral-900 mb-3">CATEGORY *</label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <button
+                    v-for="cat in categoryOptions"
+                    :key="cat.value"
+                    @click="category = cat.value"
+                    type="button"
+                    :class="[
+                      'p-4 rounded-lg border-2 text-center transition-all',
+                      category === cat.value
+                        ? 'border-primary-600 bg-primary-50'
+                        : 'border-neutral-200 hover:border-neutral-300'
+                    ]"
+                  >
+                    <div class="text-2xl mb-2">{{ cat.icon }}</div>
+                    <div class="font-bold text-neutral-900 text-sm">{{ cat.label }}</div>
+                    <div class="text-xs text-neutral-600 mt-1">{{ cat.description }}</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Room Size (for Interior/Commercial) -->
+              <div v-if="category === 'interior' || category === 'commercial'" class="mb-6">
+                <label class="block text-sm font-semibold text-neutral-900 mb-3">ROOM SIZE</label>
+                <div class="flex gap-3">
+                  <button
+                    v-for="size in roomSizeOptions"
+                    :key="size.value"
+                    @click="roomSize = size.value"
+                    type="button"
+                    :class="[
+                      'flex-1 p-3 rounded-lg border-2 transition-all',
+                      roomSize === size.value
+                        ? 'border-primary-600 bg-primary-50'
+                        : 'border-neutral-200 hover:border-neutral-300'
+                    ]"
+                  >
+                    <div class="font-bold text-neutral-900 text-sm">{{ size.label }}</div>
+                    <div class="text-xs text-neutral-600">{{ size.description }}</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lighting & Atmosphere Section -->
+            <div class="card">
+              <div class="flex items-start gap-3 mb-6">
+                <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="text-xl font-bold text-neutral-900">Lighting & Atmosphere</h2>
+                  <p class="text-sm text-neutral-600">Configure lighting and environmental mood.</p>
+                </div>
+              </div>
+
+              <!-- Lighting Type -->
+              <div class="mb-6">
+                <label class="block text-sm font-semibold text-neutral-900 mb-3">LIGHTING TYPE *</label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <button
+                    v-for="light in lightingOptions"
+                    :key="light.value"
+                    @click="lightingType = light.value"
+                    type="button"
+                    :class="[
+                      'p-4 rounded-lg border-2 text-center transition-all',
+                      lightingType === light.value
+                        ? 'border-primary-600 bg-primary-50'
+                        : 'border-neutral-200 hover:border-neutral-300'
+                    ]"
+                  >
+                    <div class="text-2xl mb-2">{{ light.icon }}</div>
+                    <div class="font-bold text-neutral-900 text-sm">{{ light.label }}</div>
+                    <div class="text-xs text-neutral-600 mt-1">{{ light.description }}</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Ambient Intensity Slider -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                  <label class="text-sm font-semibold text-neutral-900">AMBIENT INTENSITY</label>
+                  <span class="text-2xl font-black text-primary-600">{{ ambientIntensity }}%</span>
+                </div>
+                <input
+                  v-model="ambientIntensity"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  class="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                />
+                <div class="flex items-center justify-between text-xs mt-2">
+                  <span class="text-neutral-500">Dim</span>
+                  <span class="text-neutral-500">Bright</span>
+                </div>
+              </div>
+
+              <!-- Color Pickers -->
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-semibold text-neutral-900 mb-2">BACKGROUND COLOR</label>
+                  <div class="flex items-center gap-3">
+                    <input
+                      v-model="backgroundColor"
+                      type="color"
+                      class="w-12 h-12 rounded border-2 border-neutral-200 cursor-pointer"
+                    />
+                    <input
+                      v-model="backgroundColor"
+                      type="text"
+                      class="input-field flex-1"
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </div>
+
+                <div v-if="category === 'interior' || category === 'commercial'">
+                  <label class="block text-sm font-semibold text-neutral-900 mb-2">WALL COLOR</label>
+                  <div class="flex items-center gap-3">
+                    <input
+                      v-model="wallColor"
+                      type="color"
+                      class="w-12 h-12 rounded border-2 border-neutral-200 cursor-pointer"
+                    />
+                    <input
+                      v-model="wallColor"
+                      type="text"
+                      class="input-field flex-1"
+                      placeholder="#f5f5f5"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Style & Details Section -->
             <div class="card">
               <div class="flex items-start gap-3 mb-6">
                 <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
@@ -368,253 +913,116 @@ onMounted(() => {
                   </svg>
                 </div>
                 <div>
-                  <h2 class="text-xl font-bold text-neutral-900">Reference Image</h2>
-                  <p class="text-sm text-neutral-600">Update the reference image (optional).</p>
+                  <h2 class="text-xl font-bold text-neutral-900">Style & Details</h2>
+                  <p class="text-sm text-neutral-600">Define the aesthetic and additional elements.</p>
                 </div>
               </div>
 
-              <!-- Current Image Display -->
-              <div v-if="currentReferenceImageUrl && !imagePreviewUrl" class="mb-4">
-                <label class="block text-xs font-semibold text-neutral-600 mb-2 uppercase">Current Image</label>
-                <div class="relative rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 16/9;">
-                  <img :src="currentReferenceImageUrl" alt="Current reference" class="w-full h-full object-cover" />
-                </div>
-              </div>
-
-              <!-- Upload Area -->
-              <div>
-                <label class="block text-sm font-semibold text-neutral-900 mb-2">
-                  {{ imagePreviewUrl ? 'NEW IMAGE' : 'UPLOAD NEW IMAGE (OPTIONAL)' }}
-                </label>
-
-                <!-- Preview -->
-                <div v-if="imagePreviewUrl" class="relative mb-4 rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 16/9;">
-                  <img :src="imagePreviewUrl" alt="Preview" class="w-full h-full object-cover" />
+              <!-- Visual Style -->
+              <div class="mb-6">
+                <label class="block text-sm font-semibold text-neutral-900 mb-3">VISUAL STYLE</label>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <button
-                    @click="removeImage"
+                    v-for="style in visualStyleOptions"
+                    :key="style.value"
+                    @click="visualStyle = style.value"
                     type="button"
-                    class="absolute top-2 right-2 w-8 h-8 bg-error-600 hover:bg-error-700 text-white rounded-full flex items-center justify-center"
+                    :class="[
+                      'p-4 rounded-lg border-2 text-left transition-all',
+                      visualStyle === style.value
+                        ? 'border-primary-600 bg-primary-50'
+                        : 'border-neutral-200 hover:border-neutral-300'
+                    ]"
                   >
-                    ✕
+                    <div class="font-bold text-neutral-900 text-sm mb-1">{{ style.label }}</div>
+                    <div class="text-xs text-neutral-600">{{ style.description }}</div>
                   </button>
                 </div>
+              </div>
 
-                <!-- Upload Button -->
-                <div v-if="!imagePreviewUrl" class="relative">
+              <!-- Mood/Tone -->
+              <div class="mb-6">
+                <label class="block text-sm font-semibold text-neutral-900 mb-3">MOOD / TONE</label>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="mood in moodToneOptions"
+                    :key="mood.value"
+                    @click="moodTone = mood.value"
+                    type="button"
+                    :class="[
+                      'px-4 py-2 rounded-lg border-2 transition-all flex items-center gap-2',
+                      moodTone === mood.value
+                        ? 'border-primary-600 bg-primary-50 text-primary-700'
+                        : 'border-neutral-200 hover:border-neutral-300'
+                    ]"
+                  >
+                    <span>{{ mood.emoji }}</span>
+                    <span class="font-medium">{{ mood.label }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Floor Type (for Interior/Commercial) -->
+              <div v-if="category === 'interior' || category === 'commercial'" class="mb-6">
+                <label class="block text-sm font-semibold text-neutral-900 mb-3">FLOOR TYPE</label>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="floor in floorTypeOptions"
+                    :key="floor.value"
+                    @click="floorType = floor.value"
+                    type="button"
+                    :class="[
+                      'px-4 py-2 rounded-lg border-2 transition-all flex items-center gap-2',
+                      floorType === floor.value
+                        ? 'border-primary-600 bg-primary-50 text-primary-700'
+                        : 'border-neutral-200 hover:border-neutral-300'
+                    ]"
+                  >
+                    <span>{{ floor.emoji }}</span>
+                    <span class="font-medium">{{ floor.label }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Additional Options -->
+              <div class="space-y-3">
+                <label v-if="category === 'interior' || category === 'commercial'" class="flex items-center gap-3 cursor-pointer">
                   <input
-                    type="file"
-                    @change="handleImageSelect"
-                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    id="image-upload"
+                    v-model="includeWindows"
+                    type="checkbox"
+                    class="w-5 h-5 text-primary-600 rounded border-neutral-300 focus:ring-primary-500"
                   />
-                  <label
-                    for="image-upload"
-                    class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-neutral-300 rounded-lg cursor-pointer bg-neutral-50 hover:bg-neutral-100 transition-colors"
-                  >
-                    <svg class="w-8 h-8 text-neutral-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <p class="text-sm text-neutral-600">Click to upload or drag and drop</p>
-                    <p class="text-xs text-neutral-500 mt-1">JPG, PNG or WebP (max 5MB)</p>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <!-- Basic Details -->
-            <div class="card">
-              <div class="flex items-start gap-3 mb-6">
-                <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
-                  <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 class="text-xl font-bold text-neutral-900">Environment Details</h2>
-                  <p class="text-sm text-neutral-600">Update name and description.</p>
-                </div>
-              </div>
-
-              <!-- Environment Name -->
-              <div class="mb-4">
-                <label class="block text-sm font-semibold text-neutral-900 mb-2">
-                  ENVIRONMENT NAME <span class="text-error-600">*</span>
+                  <div>
+                    <div class="text-sm font-semibold text-neutral-900">Include Windows</div>
+                    <div class="text-xs text-neutral-600">Add window elements to the environment</div>
+                  </div>
                 </label>
-                <input
-                  v-model="environmentName"
-                  type="text"
-                  placeholder="e.g., Modern Home Office, Urban Cafe, etc."
-                  class="input-field"
-                  required
-                />
-              </div>
 
-              <!-- Description -->
-              <div class="mb-4">
-                <label class="block text-sm font-semibold text-neutral-900 mb-2">DESCRIPTION (OPTIONAL)</label>
-                <textarea
-                  v-model="description"
-                  rows="3"
-                  placeholder="Describe the environment..."
-                  class="input-field resize-none"
-                ></textarea>
-              </div>
-
-              <!-- Category -->
-              <div>
-                <label class="block text-sm font-semibold text-neutral-900 mb-3">CATEGORY</label>
-                <div class="grid grid-cols-3 gap-3">
-                  <button
-                    v-for="option in categoryOptions"
-                    :key="option.value"
-                    type="button"
-                    @click="category = option.value"
-                    :class="[
-                      'p-4 rounded-lg border-2 transition-all text-center',
-                      category === option.value
-                        ? 'border-primary-600 bg-primary-50'
-                        : 'border-neutral-200 hover:border-neutral-300 bg-white'
-                    ]"
-                  >
-                    <div class="text-2xl mb-1">{{ option.icon }}</div>
-                    <div class="font-semibold text-neutral-900">{{ option.label }}</div>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Lighting Type -->
-              <div class="mt-6">
-                <label class="block text-sm font-semibold text-neutral-900 mb-3">LIGHTING TYPE</label>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <button
-                    v-for="option in lightingOptions"
-                    :key="option.value"
-                    type="button"
-                    @click="lightingType = option.value"
-                    :class="[
-                      'p-4 rounded-lg border-2 transition-all text-left',
-                      lightingType === option.value
-                        ? 'border-primary-600 bg-primary-50'
-                        : 'border-neutral-200 hover:border-neutral-300 bg-white'
-                    ]"
-                  >
-                    <div class="text-2xl mb-2">{{ option.icon }}</div>
-                    <div class="font-semibold text-neutral-900 mb-1">{{ option.label }}</div>
-                    <div class="text-xs text-neutral-600">{{ option.description }}</div>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Additional Settings -->
-            <div class="card">
-              <div class="flex items-start gap-3 mb-6">
-                <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
-                  <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 class="text-xl font-bold text-neutral-900">Additional Settings</h2>
-                  <p class="text-sm text-neutral-600">Fine-tune environment specifications.</p>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Visual Style -->
-                <div>
-                  <label class="block text-sm font-semibold text-neutral-900 mb-2">VISUAL STYLE</label>
-                  <select v-model="visualStyle" class="input-field">
-                    <option :value="null">None</option>
-                    <option v-for="style in visualStyleOptions" :key="style.value" :value="style.value">
-                      {{ style.label }}
-                    </option>
-                  </select>
-                </div>
-
-                <!-- Mood/Tone -->
-                <div>
-                  <label class="block text-sm font-semibold text-neutral-900 mb-2">MOOD/TONE</label>
-                  <select v-model="moodTone" class="input-field">
-                    <option :value="null">None</option>
-                    <option v-for="mood in moodToneOptions" :key="mood.value" :value="mood.value">
-                      {{ mood.emoji }} {{ mood.label }}
-                    </option>
-                  </select>
-                </div>
-
-                <!-- Ambient Intensity -->
-                <div>
-                  <label class="block text-sm font-semibold text-neutral-900 mb-2">
-                    AMBIENT INTENSITY: {{ ambientIntensity }}%
-                  </label>
-                  <input v-model.number="ambientIntensity" type="range" min="0" max="100" class="w-full" />
-                </div>
-
-                <!-- Room Size -->
-                <div>
-                  <label class="block text-sm font-semibold text-neutral-900 mb-2">ROOM SIZE</label>
-                  <select v-model="roomSize" class="input-field">
-                    <option v-for="size in roomSizeOptions" :key="size.value" :value="size.value">
-                      {{ size.label }}
-                    </option>
-                  </select>
-                </div>
-
-                <!-- Floor Type -->
-                <div>
-                  <label class="block text-sm font-semibold text-neutral-900 mb-2">FLOOR TYPE</label>
-                  <select v-model="floorType" class="input-field">
-                    <option v-for="floor in floorTypeOptions" :key="floor.value" :value="floor.value">
-                      {{ floor.emoji }} {{ floor.label }}
-                    </option>
-                  </select>
-                </div>
-
-                <!-- Background Color -->
-                <div>
-                  <label class="block text-sm font-semibold text-neutral-900 mb-2">BACKGROUND COLOR</label>
-                  <input v-model="backgroundColor" type="color" class="w-full h-10 rounded-lg border-2 border-neutral-200" />
-                </div>
-
-                <!-- Wall Color -->
-                <div>
-                  <label class="block text-sm font-semibold text-neutral-900 mb-2">WALL COLOR</label>
-                  <input v-model="wallColor" type="color" class="w-full h-10 rounded-lg border-2 border-neutral-200" />
-                </div>
-              </div>
-
-              <!-- Checkboxes -->
-              <div class="mt-6 space-y-3">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input v-model="includeWindows" type="checkbox" class="w-5 h-5" />
-                  <span class="text-sm font-medium text-neutral-900">Include Windows</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input v-model="includeProps" type="checkbox" class="w-5 h-5" />
-                  <span class="text-sm font-medium text-neutral-900">Include Props</span>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    v-model="includeProps"
+                    type="checkbox"
+                    class="w-5 h-5 text-primary-600 rounded border-neutral-300 focus:ring-primary-500"
+                  />
+                  <div>
+                    <div class="text-sm font-semibold text-neutral-900">Include Props & Decorations</div>
+                    <div class="text-xs text-neutral-600">Add furniture, plants, and decorative elements</div>
+                  </div>
                 </label>
               </div>
             </div>
           </div>
 
-          <!-- Right Column - Preview -->
+          <!-- Right Column - Preview & Summary -->
           <div class="space-y-6">
-            <!-- Image Preview -->
-            <div class="card sticky top-6">
+            <!-- Preview -->
+            <div class="card">
               <h3 class="text-sm font-bold text-neutral-900 uppercase mb-4">Preview</h3>
               <div class="relative rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 4/3;">
                 <img
                   v-if="imagePreviewUrl"
                   :src="imagePreviewUrl"
-                  alt="New reference image"
-                  class="w-full h-full object-cover"
-                />
-                <img
-                  v-else-if="currentReferenceImageUrl"
-                  :src="currentReferenceImageUrl"
-                  alt="Current reference image"
+                  alt="Environment preview"
                   class="w-full h-full object-cover"
                 />
                 <div v-else class="w-full h-full flex items-center justify-center">
@@ -622,25 +1030,67 @@ onMounted(() => {
                     <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p class="text-xs">No image</p>
+                    <p class="text-sm">No preview image</p>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Environment Summary -->
+            <div class="card bg-neutral-900 text-white">
+              <div class="flex items-center gap-2 mb-4">
+                <svg class="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <h3 class="text-sm font-bold uppercase">Environment Summary</h3>
+              </div>
+
+              <div class="space-y-3">
+                <div class="flex items-center justify-between py-2 border-b border-neutral-800">
+                  <span class="text-sm text-neutral-400">Category</span>
+                  <span class="font-bold capitalize">{{ category }}</span>
+                </div>
+                <div class="flex items-center justify-between py-2 border-b border-neutral-800">
+                  <span class="text-sm text-neutral-400">Lighting</span>
+                  <span class="font-bold capitalize">{{ lightingType }}</span>
+                </div>
+                <div v-if="visualStyle" class="flex items-center justify-between py-2 border-b border-neutral-800">
+                  <span class="text-sm text-neutral-400">Style</span>
+                  <span class="font-bold capitalize">{{ visualStyle }}</span>
+                </div>
+                <div v-if="moodTone" class="flex items-center justify-between py-2 border-b border-neutral-800">
+                  <span class="text-sm text-neutral-400">Mood</span>
+                  <span class="font-bold capitalize">{{ moodTone }}</span>
+                </div>
+                <div class="flex items-center justify-between py-2 border-b border-neutral-800">
+                  <span class="text-sm text-neutral-400">Ambient</span>
+                  <span class="font-bold">{{ ambientIntensity }}%</span>
+                </div>
+                <div v-if="category === 'interior' || category === 'commercial'" class="flex items-center justify-between py-2 border-b border-neutral-800">
+                  <span class="text-sm text-neutral-400">Room Size</span>
+                  <span class="font-bold capitalize">{{ roomSize }}</span>
+                </div>
+                <div v-if="includeWindows && (category === 'interior' || category === 'commercial')" class="flex items-center justify-between py-2 border-b border-neutral-800">
+                  <span class="text-sm text-neutral-400">Windows</span>
+                  <span class="font-bold text-success-400">Included</span>
+                </div>
+                <div v-if="includeProps" class="flex items-center justify-between py-2 border-b border-neutral-800">
+                  <span class="text-sm text-neutral-400">Props</span>
+                  <span class="font-bold text-success-400">Included</span>
                 </div>
               </div>
 
-              <!-- Image Status -->
-              <div class="mt-4 p-3 bg-warning-50 rounded-lg border border-warning-200">
-                <div class="flex items-start gap-2">
-                  <svg class="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <div>
-                    <p class="text-xs font-semibold text-warning-800 mb-1">AI Regeneration</p>
-                    <p class="text-xs text-warning-700">
-                      Updating will clear the current result image and trigger AI regeneration.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <button
+                @click="handleUpdate"
+                :disabled="isLoading || !environmentName"
+                class="btn-primary w-full mt-6 bg-primary-600 hover:bg-primary-700 disabled:bg-neutral-700 disabled:text-neutral-500"
+              >
+                UPDATE & REGENERATE
+              </button>
+
+              <p class="text-xs text-neutral-500 text-center mt-3">
+                New variant will be generated
+              </p>
             </div>
           </div>
         </div>
@@ -650,21 +1100,24 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.loading-spinner {
-  width: 48px;
-  height: 48px;
-  border: 5px solid #f3f4f6;
-  border-bottom-color: #1313EC;
+/* Custom slider styling */
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  animation: rotation 1s linear infinite;
+  background: #1313EC;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-@keyframes rotation {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1313EC;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: none;
 }
 </style>

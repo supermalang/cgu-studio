@@ -1,52 +1,56 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useEnvironmentsStore } from '@/stores/environments'
 import Sidebar from '@/components/common/Sidebar.vue'
 import AppHeader from '@/components/common/AppHeader.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const environmentsStore = useEnvironmentsStore()
 
 // State
-const environments = ref([])
 const isLoading = ref(true)
 const error = ref(null)
 const activeFilter = ref('all')
 const searchQuery = ref('')
 
-// Fetch environments from Supabase
+// Use store environments
+const environments = computed(() => environmentsStore.environments)
+
+// Fetch environments from store
 async function fetchEnvironments() {
   isLoading.value = true
   error.value = null
 
   try {
-    const { data, error: fetchError } = await supabase
-      .from('environments')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (fetchError) throw fetchError
+    await environmentsStore.fetchEnvironments()
 
     // If no environments exist, use placeholder data
-    if (!data || data.length === 0) {
-      environments.value = [
-        {
-          id: 'placeholder-1',
-          name: 'Modern Home Office',
-          category: 'interior',
-          reference_image_url: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=400&fit=crop',
-          environment_specs: {
+    if (!environmentsStore.environments || environmentsStore.environments.length === 0) {
+      const { count } = await supabase
+        .from('environments')
+        .select('*', { count: 'exact', head: true })
+
+      if (count === 0) {
+        // Show placeholder for empty state
+        environmentsStore.environments = [
+          {
+            id: 'placeholder-1',
+            name: 'Modern Home Office',
             category: 'interior',
-            lighting_type: 'natural'
-          },
-          is_active: true,
-          created_at: new Date().toISOString()
-        }
-      ]
-    } else {
-      environments.value = data
+            reference_image_url: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400&h=400&fit=crop',
+            environment_specs: {
+              category: 'interior',
+              lighting_type: 'natural'
+            },
+            is_active: true,
+            created_at: new Date().toISOString()
+          }
+        ]
+      }
     }
   } catch (err) {
     console.error('Error fetching environments:', err)
@@ -58,6 +62,16 @@ async function fetchEnvironments() {
 
 onMounted(async () => {
   await fetchEnvironments()
+
+  // Subscribe to realtime updates
+  if (authStore.user?.id) {
+    environmentsStore.subscribeToEnvironments(authStore.user.id)
+  }
+})
+
+onUnmounted(() => {
+  // Clean up subscription
+  environmentsStore.unsubscribe()
 })
 
 const totalActive = computed(() => environments.value.filter(env => env.is_active).length)
@@ -225,10 +239,10 @@ function formatLightingLabel(lighting) {
         >
           <!-- Environment Image -->
           <div class="relative mb-4 rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 4/3;">
-            <!-- Result Image (if available) -->
+            <!-- Active Result Image (if available) -->
             <img
-              v-if="environment.result_image_url"
-              :src="environment.result_image_url"
+              v-if="environmentsStore.getActiveResultImage(environment.id)"
+              :src="environmentsStore.getActiveResultImage(environment.id).url"
               :alt="environment.name"
               class="w-full h-full object-cover"
             />
@@ -243,6 +257,16 @@ function formatLightingLabel(lighting) {
                   🔄 PROCESSING
                 </span>
               </div>
+            </div>
+
+            <!-- Variant Count Badge (if multiple) -->
+            <div
+              v-if="environment.result_images && environment.result_images.length > 1"
+              class="absolute bottom-2 right-2"
+            >
+              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-neutral-900/80 text-white backdrop-blur">
+                {{ environment.result_images.length }} variants
+              </span>
             </div>
 
             <!-- Hover Overlay -->

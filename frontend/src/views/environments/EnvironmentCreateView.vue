@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useEnvironmentsStore } from '@/stores/environments'
 import { supabase } from '@/lib/supabase'
 import { useN8nIntegration } from '@/composables/useN8nIntegration'
 import { useImageUpload } from '@/composables/useImageUpload'
@@ -12,6 +13,7 @@ import AppHeader from '@/components/common/AppHeader.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const environmentsStore = useEnvironmentsStore()
 const { sendToEndpoint } = useN8nIntegration()
 const { showToast } = useToast()
 const {
@@ -173,8 +175,16 @@ function handleJobUpdate(job) {
 
   if (job.status === 'completed') {
     isProcessing.value = false
+    console.log('✅ n8n job completed, environment should auto-update via realtime')
+
+    // Optional: Force refresh after delay if realtime is slow
+    setTimeout(async () => {
+      await environmentsStore.fetchEnvironments()
+      console.log('🔄 Forced environment refresh as fallback')
+    }, 2000)
   } else if (job.status === 'failed') {
     isProcessing.value = false
+    console.error('❌ n8n job failed:', job.error_message)
   }
 }
 
