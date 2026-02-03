@@ -2,8 +2,12 @@ import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 
-// Upload timeout in milliseconds (30 seconds)
-const UPLOAD_TIMEOUT_MS = 30000
+// Upload timeout in milliseconds (60 seconds - accounts for compression + upload)
+const UPLOAD_TIMEOUT_MS = 60000
+
+// Image compression settings
+const MAX_IMAGE_DIMENSION = 2048 // Max width or height in pixels
+const COMPRESSION_QUALITY = 0.8 // JPEG quality (0.0 - 1.0)
 
 /**
  * Composable for handling image uploads to Supabase Storage
@@ -46,16 +50,88 @@ export function useImageUpload() {
   }
 
   /**
+   * Compresses an image file to reduce size before upload
+   * Uses Canvas API to resize and compress the image
+   * @param {File} file - The image file to compress
+   * @returns {Promise<File>} compressed image file
+   */
+  async function compressImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+
+      reader.onerror = () => reject(new Error('Failed to read image file'))
+
+      reader.onload = (e) => {
+        const img = new Image()
+
+        img.onerror = () => reject(new Error('Failed to load image'))
+
+        img.onload = () => {
+          // Calculate new dimensions while maintaining aspect ratio
+          let width = img.width
+          let height = img.height
+
+          if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+            if (width > height) {
+              height = (height / width) * MAX_IMAGE_DIMENSION
+              width = MAX_IMAGE_DIMENSION
+            } else {
+              width = (width / height) * MAX_IMAGE_DIMENSION
+              height = MAX_IMAGE_DIMENSION
+            }
+          }
+
+          // Create canvas and draw resized image
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, width, height)
+
+          // Convert canvas to blob with compression
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Failed to compress image'))
+                return
+              }
+
+              console.log('Image compressed:', {
+                originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+                compressedSize: (blob.size / 1024 / 1024).toFixed(2) + ' MB',
+                reduction: ((1 - blob.size / file.size) * 100).toFixed(1) + '%'
+              })
+
+              // Return the blob directly - Supabase SDK accepts blobs
+              // This avoids potential File constructor issues
+              resolve(blob)
+            },
+            'image/jpeg',
+            COMPRESSION_QUALITY
+          )
+        }
+
+        img.src = e.target.result
+      }
+
+      reader.readAsDataURL(file)
+    })
+  }
+
+  /**
    * Generates a unique filename for storage
-   * Format: environment_{timestamp}_{random}.{ext}
+   * Format: environment_{timestamp}_{random}.{ext} or environment_result_{timestamp}_{random}.{ext}
    * @param {File} file - The file to generate a name for
+   * @param {string} imageType - Type of image ('reference' or 'result')
    * @returns {string} unique filename
    */
-  function generateFileName(file) {
+  function generateFileName(file, imageType = 'reference') {
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(2, 7)
     const extension = file.name.split('.').pop()
-    return `environment_${timestamp}_${randomStr}.${extension}`
+    const prefix = imageType === 'result' ? 'environment_result' : 'environment'
+    return `${prefix}_${timestamp}_${randomStr}.${extension}`
   }
 
   /**
@@ -69,7 +145,7 @@ export function useImageUpload() {
     const interval = setInterval(() => {
       // Exponential slowdown (fast at start, slow near end)
       const increment = (100 - currentProgress) * 0.1
-      currentProgress = Math.min(currentProgress + increment, 90) // Cap at 90%
+      currentProgress = Math.min(currentProgress + increment, 95) // Cap at 95%
       uploadProgress.value = Math.floor(currentProgress)
     }, 300) // Update every 300ms
 
@@ -80,9 +156,10 @@ export function useImageUpload() {
    * Uploads image to Supabase Storage
    * @param {File} file - The image file to upload
    * @param {string} bucket - Storage bucket name (default: 'Environments')
+   * @param {string} imageType - Type of image ('reference' or 'result')
    * @returns {Object} result with success flag, URL, path, and error
    */
-  async function uploadImage(file, bucket = 'Environments') {
+  async function uploadImage(file, bucket = 'Environments', imageType = 'reference') {
     // Validate file
     const validation = validateImage(file)
     if (!validation.valid) {
@@ -98,25 +175,30 @@ export function useImageUpload() {
     const progressInterval = startProgressSimulation()
 
     try {
-      const fileName = generateFileName(file)
+      // Compress image before upload
+      const compressedFile = await compressImage(file)
+
+      const fileName = generateFileName(file, imageType)
       const userId = authStore.user.id
       const filePath = `${userId}/${fileName}`
 
-      // Create upload promise
-      const uploadPromise = supabase.storage
+      console.log('Starting upload:', {
+        bucket,
+        filePath,
+        blobSize: compressedFile.size,
+        blobType: compressedFile.type,
+        userId
+      })
+
+      // Upload using standard Supabase method - pass blob directly
+      const { data, error } = await supabase.storage
         .from(bucket)
-        .upload(filePath, file, {
+        .upload(filePath, compressedFile, {
           cacheControl: '3600',
           upsert: false
         })
 
-      // Create timeout promise
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Upload timeout: Request took too long')), UPLOAD_TIMEOUT_MS)
-      )
-
-      // Race them - first to complete/fail wins
-      const { error } = await Promise.race([uploadPromise, timeoutPromise])
+      console.log('Upload result:', { data, error })
 
       if (error) throw error
 
@@ -182,10 +264,11 @@ export function useImageUpload() {
    * Uses exponential backoff between retry attempts
    * @param {File} file - The image file to upload
    * @param {string} bucket - Storage bucket name (default: 'Environments')
+   * @param {string} imageType - Type of image ('reference' or 'result')
    * @param {number} maxRetries - Maximum retry attempts (default: 2)
    * @returns {Object} result with success flag, URL, path, and error
    */
-  async function uploadImageWithRetry(file, bucket = 'Environments', maxRetries = 2) {
+  async function uploadImageWithRetry(file, bucket = 'Environments', imageType = 'reference', maxRetries = 2) {
     let lastError = null
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -195,7 +278,7 @@ export function useImageUpload() {
         await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)))
       }
 
-      const result = await uploadImage(file, bucket)
+      const result = await uploadImage(file, bucket, imageType)
 
       if (result.success) {
         return result

@@ -224,6 +224,7 @@ async function sendToN8nWithTracking(environmentData) {
       user_email: authStore.user.email,
       job_id: job.id,
       image_url: environmentData.reference_image_url || null,
+      callback_endpoint: n8nConfig.value?.callback_endpoint || null,
       environment: environmentData
     }
 
@@ -291,11 +292,11 @@ async function handleSaveDraft() {
   error.value = null
 
   try {
-    // Step 1: Upload image FIRST (if selected)
+    // Step 1: Upload reference image FIRST (if selected)
     let finalImageUrl = null
 
     if (selectedImage.value) {
-      const uploadResult = await uploadImageWithRetry(selectedImage.value)
+      const uploadResult = await uploadImageWithRetry(selectedImage.value, 'Environments', 'reference')
 
       if (!uploadResult.success) {
         throw new Error(uploadResult.error || 'Image upload failed')
@@ -320,7 +321,7 @@ async function handleSaveDraft() {
       room_size: roomSize.value
     }
 
-    const { data: createdEnvironment, error: createError } = await supabase
+    const { data: createdEnvironment, error: createError} = await supabase
       .from('environments')
       .insert({
         user_id: authStore.user.id,
@@ -332,7 +333,7 @@ async function handleSaveDraft() {
         created_by: authStore.user.id,
         updated_by: authStore.user.id
       })
-      .select('id, name, reference_image_url, environment_specs')
+      .select('id, name, description, reference_image_url, environment_specs')
       .single()
 
     if (createError) throw createError
@@ -386,7 +387,7 @@ async function handleCreateAndActivate() {
     if (selectedImage.value) {
       creationStep.value = 'uploading'
 
-      const uploadResult = await uploadImageWithRetry(selectedImage.value)
+      const uploadResult = await uploadImageWithRetry(selectedImage.value, 'Environments', 'reference')
 
       if (!uploadResult.success) {
         // Enhanced error messages
@@ -421,7 +422,7 @@ async function handleCreateAndActivate() {
       room_size: roomSize.value
     }
 
-    const { data: createdEnvironment, error: createError } = await supabase
+    const { data: createdEnvironment, error: createError} = await supabase
       .from('environments')
       .insert({
         user_id: authStore.user.id,
@@ -433,7 +434,7 @@ async function handleCreateAndActivate() {
         created_by: authStore.user.id,
         updated_by: authStore.user.id
       })
-      .select('id, name, reference_image_url, environment_specs')
+      .select('id, name, description, reference_image_url, environment_specs')
       .single()
 
     if (createError) throw createError

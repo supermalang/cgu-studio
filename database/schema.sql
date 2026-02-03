@@ -527,7 +527,8 @@ CREATE TABLE environments (
   -- Environment Details
   name TEXT NOT NULL,
   description TEXT,
-  reference_image_url TEXT,
+  reference_image_url TEXT, -- User-uploaded reference image (before)
+  result_image_url TEXT, -- AI-generated result image (after)
   environment_specs JSONB, -- Flexible JSON for environment details
   
   -- Status

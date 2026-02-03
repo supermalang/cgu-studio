@@ -16,6 +16,7 @@ const formData = ref({
   enabled: false,
   host_url: '',
   api_token: '',
+  callback_endpoint: '',
   endpoints: {
     avatars: {
       url: '',
@@ -54,6 +55,7 @@ const showToken = ref(false)
 const errors = ref({
   host_url: '',
   api_token: '',
+  callback_endpoint: '',
   avatars_url: '',
   environments_url: '',
   projects_url: ''
@@ -83,6 +85,12 @@ function validateField(field) {
   if (field === 'api_token') {
     if (formData.value.enabled && !formData.value.api_token.trim()) {
       errors.value.api_token = 'API token is required when enabled'
+    }
+  }
+
+  if (field === 'callback_endpoint' && formData.value.callback_endpoint) {
+    if (!validateUrl(formData.value.callback_endpoint)) {
+      errors.value.callback_endpoint = 'Must be a valid URL (http:// or https://)'
     }
   }
 
@@ -298,6 +306,22 @@ defineExpose({
         </div>
         <p v-if="errors.api_token" class="input-error">{{ errors.api_token }}</p>
         <p v-else class="input-hint">Authentication token for n8n API</p>
+      </div>
+
+      <!-- Callback Endpoint -->
+      <div class="pb-6 border-b border-gray-200">
+        <label class="input-label">Callback Endpoint URL</label>
+        <input
+          v-model="formData.callback_endpoint"
+          type="url"
+          class="input-field"
+          :class="{ 'border-error-500': errors.callback_endpoint }"
+          :disabled="!formData.enabled"
+          placeholder="https://your-domain.com/api/callback"
+          @blur="validateField('callback_endpoint'); emitUpdate()"
+        >
+        <p v-if="errors.callback_endpoint" class="input-error">{{ errors.callback_endpoint }}</p>
+        <p v-else class="input-hint">HTTP(S) endpoint to receive callbacks for video generation completion events</p>
       </div>
 
       <!-- Webhook Endpoints Section -->

@@ -67,6 +67,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/environments/:id/edit',
+    name: 'environment-edit',
+    component: () => import('@/views/environments/EnvironmentEditView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/projects/:id',
     name: 'project-detail',
     component: () => import('@/views/projects/ProjectDetailView.vue'),

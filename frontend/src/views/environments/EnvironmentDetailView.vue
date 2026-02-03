@@ -324,13 +324,54 @@ const usageCount = computed(() => projectsUsingEnvironment.value.length)
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <!-- Left Column - Preview & Details -->
           <div class="lg:col-span-2 space-y-6">
-            <!-- Preview Image -->
+            <!-- Images Section -->
             <div class="card">
-              <h2 class="text-lg font-bold text-neutral-900 mb-4">Preview</h2>
-              <div class="relative rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 16/9;">
+              <h2 class="text-lg font-bold text-neutral-900 mb-4">Images</h2>
+
+              <!-- Side-by-Side Comparison (when both exist) -->
+              <div
+                v-if="environment.reference_image_url && environment.result_image_url"
+                class="grid grid-cols-1 md:grid-cols-2 gap-4"
+              >
+                <!-- Reference Image -->
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-600 mb-2 uppercase">
+                    Reference (Before)
+                  </label>
+                  <div class="relative rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 4/3;">
+                    <img
+                      :src="environment.reference_image_url"
+                      :alt="`${environment.name} - Reference`"
+                      class="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+
+                <!-- Result Image -->
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-600 mb-2 uppercase">
+                    AI Result (After)
+                  </label>
+                  <div class="relative rounded-lg overflow-hidden bg-neutral-100 ring-2 ring-success-500" style="aspect-ratio: 4/3;">
+                    <img
+                      :src="environment.result_image_url"
+                      :alt="`${environment.name} - Result`"
+                      class="w-full h-full object-cover"
+                    />
+                    <div class="absolute top-2 right-2">
+                      <span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold tracking-wide bg-success-500 text-white">
+                        AI GENERATED
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Single Image View (when only one exists) -->
+              <div v-else class="relative rounded-lg overflow-hidden bg-neutral-100" style="aspect-ratio: 16/9;">
                 <img
-                  v-if="environment.reference_image_url"
-                  :src="environment.reference_image_url"
+                  v-if="environment.result_image_url || environment.reference_image_url"
+                  :src="environment.result_image_url || environment.reference_image_url"
                   :alt="environment.name"
                   class="w-full h-full object-cover"
                 />
@@ -341,6 +382,21 @@ const usageCount = computed(() => projectsUsingEnvironment.value.length)
                     </svg>
                     <p class="text-sm">No preview image</p>
                   </div>
+                </div>
+
+                <!-- Image Type Label -->
+                <div
+                  v-if="environment.result_image_url || environment.reference_image_url"
+                  class="absolute top-3 left-3"
+                >
+                  <span
+                    :class="[
+                      'inline-flex items-center px-2.5 py-1 rounded text-xs font-bold tracking-wide',
+                      environment.result_image_url ? 'bg-success-500 text-white' : 'bg-neutral-700 text-white'
+                    ]"
+                  >
+                    {{ environment.result_image_url ? 'AI RESULT' : 'REFERENCE' }}
+                  </span>
                 </div>
               </div>
             </div>
