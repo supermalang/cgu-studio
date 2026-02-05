@@ -198,6 +198,62 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     unsubscribe()
   }
 
+  async function fetchProjectsUsingEnvironment(envId) {
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('get_projects_by_environment', { env_id: envId })
+
+      if (rpcError) throw rpcError
+      console.log('📊 Projects using environment fetched:', data?.length || 0)
+      return data || []
+    } catch (err) {
+      console.error('Error fetching projects using environment:', err)
+      throw err
+    }
+  }
+
+  async function fetchEnvironmentStats(envId) {
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('get_environment_usage_stats', { env_id: envId })
+
+      if (rpcError) throw rpcError
+      console.log('📊 Environment stats fetched:', data)
+      return data
+    } catch (err) {
+      console.error('Error fetching environment stats:', err)
+      throw err
+    }
+  }
+
+  async function trackEnvironmentView(envId) {
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('track_environment_view', { env_id: envId })
+
+      if (rpcError) throw rpcError
+      console.log('📊 Environment view tracked:', envId, data?.view_count)
+      return data
+    } catch (err) {
+      console.error('Error tracking environment view:', err)
+      // Don't throw - tracking failures shouldn't break the UI
+    }
+  }
+
+  async function trackEnvironmentRegeneration(envId) {
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('track_environment_regeneration', { env_id: envId })
+
+      if (rpcError) throw rpcError
+      console.log('🔄 Environment regeneration tracked:', envId, data?.regeneration_count)
+      return data
+    } catch (err) {
+      console.error('Error tracking regeneration:', err)
+      // Don't throw - tracking failures shouldn't break the UI
+    }
+  }
+
   return {
     // State
     environments,
@@ -216,6 +272,10 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     setActiveResultImage,
     subscribeToEnvironments,
     unsubscribe,
-    $reset
+    $reset,
+    fetchProjectsUsingEnvironment,
+    fetchEnvironmentStats,
+    trackEnvironmentView,
+    trackEnvironmentRegeneration
   }
 })

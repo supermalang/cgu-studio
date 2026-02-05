@@ -46,21 +46,13 @@ const activeResultImage = computed(() => {
   return environment.value.result_images[environment.value.active_result_index]
 })
 
-// Projects using this environment (mock data for now)
-const projectsUsingEnvironment = ref([
-  {
-    id: 1,
-    name: 'Summer Campaign 2024',
-    status: 'completed',
-    created_at: '2024-01-15'
-  },
-  {
-    id: 2,
-    name: 'Product Launch Video',
-    status: 'in_progress',
-    created_at: '2024-01-20'
-  }
-])
+// Usage stats (real data from database)
+const projectsUsingEnvironment = ref([])
+const usageStats = ref(null)
+const isLoadingStats = ref(false)
+const statsError = ref(null)
+
+const usageCount = computed(() => projectsUsingEnvironment.value.length)
 
 onMounted(async () => {
   await fetchEnvironment()
@@ -72,6 +64,14 @@ onMounted(async () => {
 
   // Load n8n configuration
   await loadN8nConfig()
+
+  // Track environment view
+  if (environment.value?.id) {
+    await environmentsStore.trackEnvironmentView(environment.value.id)
+  }
+
+  // Fetch usage statistics and projects
+  await fetchUsageStats()
 })
 
 onUnmounted(() => {
@@ -200,6 +200,33 @@ function closeLightbox() {
   lightboxOpen.value = false
 }
 
+async function fetchUsageStats() {
+  if (!environment.value?.id) return
+
+  isLoadingStats.value = true
+  statsError.value = null
+
+  try {
+    // Fetch projects using this environment
+    const projects = await environmentsStore.fetchProjectsUsingEnvironment(environment.value.id)
+    projectsUsingEnvironment.value = projects
+
+    // Fetch usage statistics
+    const stats = await environmentsStore.fetchEnvironmentStats(environment.value.id)
+    usageStats.value = stats
+
+    console.log('📊 Usage stats loaded:', {
+      projects: projects.length,
+      stats
+    })
+  } catch (err) {
+    console.error('Error loading usage stats:', err)
+    statsError.value = 'Failed to load usage statistics'
+  } finally {
+    isLoadingStats.value = false
+  }
+}
+
 async function loadN8nConfig() {
   try {
     const { data, error: fetchError } = await supabase
@@ -312,6 +339,14 @@ async function handleTryAgain() {
 
     if (result.success) {
       showToast('Regeneration started! New variant will be added when complete.', 'success', 4000)
+
+      // Track regeneration
+      await environmentsStore.trackEnvironmentRegeneration(environment.value.id)
+
+      // Refresh stats after a delay
+      setTimeout(() => {
+        fetchUsageStats()
+      }, 2000)
     } else {
       throw new Error(result.error || 'Failed to start regeneration')
     }
@@ -354,7 +389,6 @@ function formatDate(dateString) {
 }
 
 const specs = computed(() => environment.value?.environment_specs || {})
-const usageCount = computed(() => projectsUsingEnvironment.value.length)
 </script>
 
 <template>
@@ -762,15 +796,24 @@ const usageCount = computed(() => projectsUsingEnvironment.value.length)
                 </div>
               </div>
 
-              <div v-if="projectsUsingEnvironment.length > 0" class="space-y-3">
+              <!-- Loading State -->
+              <div v-if="isLoadingStats" class="text-center py-8 text-neutral-500">
+                <p class="text-sm">Loading projects...</p>
+              </div>
+
+              <!-- Projects List -->
+              <div v-else-if="projectsUsingEnvironment.length > 0" class="space-y-3">
                 <div
                   v-for="project in projectsUsingEnvironment"
                   :key="project.id"
-                  class="flex items-center justify-between p-4 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors"
+                  class="flex items-center justify-between p-4 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
+                  @click="router.push(`/projects/${project.id}`)"
                 >
                   <div>
                     <h3 class="font-bold text-neutral-900">{{ project.name }}</h3>
-                    <p class="text-sm text-neutral-500">Created {{ formatDate(project.created_at) }}</p>
+                    <p class="text-sm text-neutral-500">
+                      {{ project.total_shots }} shots • Created {{ formatDate(project.created_at) }}
+                    </p>
                   </div>
                   <span
                     :class="[
@@ -782,46 +825,115 @@ const usageCount = computed(() => projectsUsingEnvironment.value.length)
                   </span>
                 </div>
               </div>
+
+              <!-- Empty State -->
               <div v-else class="text-center py-8 text-neutral-500">
                 <svg class="w-12 h-12 mx-auto mb-3 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p>No projects using this environment yet</p>
+                <p class="mb-4">No projects using this environment yet</p>
+                <button
+                  @click="router.push('/projects/create')"
+                  class="btn-secondary text-sm"
+                >
+                  Create Project
+                </button>
               </div>
             </div>
           </div>
 
           <!-- Right Column - Stats & Info -->
           <div class="space-y-6">
-            <!-- Usage Stats -->
+            <!-- Usage Statistics -->
             <div class="card">
-              <h3 class="text-sm font-bold text-neutral-900 uppercase mb-4">Usage Statistics</h3>
-              <div class="space-y-4">
-                <div>
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-sm text-neutral-600">Total Projects</span>
-                    <span class="text-2xl font-black text-primary-600">{{ usageCount }}</span>
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-bold text-neutral-900 uppercase">Usage Statistics</h3>
+                <button
+                  @click="fetchUsageStats"
+                  :disabled="isLoadingStats"
+                  class="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  {{ isLoadingStats ? 'Loading...' : 'Refresh' }}
+                </button>
+              </div>
+
+              <!-- Loading State -->
+              <div v-if="isLoadingStats" class="text-center py-8">
+                <div class="loading-spinner mx-auto mb-3"></div>
+                <p class="text-sm text-neutral-500">Loading statistics...</p>
+              </div>
+
+              <!-- Error State -->
+              <div v-else-if="statsError" class="text-center py-6">
+                <p class="text-sm text-error-600 mb-3">{{ statsError }}</p>
+                <button @click="fetchUsageStats" class="btn-secondary text-sm">
+                  Try Again
+                </button>
+              </div>
+
+              <!-- Statistics Display -->
+              <div v-else-if="usageStats" class="space-y-4">
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-2 gap-3">
+                  <!-- View Count -->
+                  <div class="bg-neutral-50 rounded-lg p-3 text-center">
+                    <div class="text-xl font-bold text-neutral-900">
+                      {{ usageStats.view_count || 0 }}
+                    </div>
+                    <div class="text-xs text-neutral-600 mt-1">Views</div>
                   </div>
-                  <div class="w-full bg-neutral-200 rounded-full h-2">
-                    <div
-                      class="bg-primary-600 h-2 rounded-full"
-                      :style="{ width: `${Math.min(usageCount * 20, 100)}%` }"
-                    ></div>
+
+                  <!-- Project Count -->
+                  <div class="bg-primary-50 rounded-lg p-3 text-center">
+                    <div class="text-xl font-bold text-primary-600">
+                      {{ usageStats.project_count || 0 }}
+                    </div>
+                    <div class="text-xs text-neutral-600 mt-1">Projects</div>
+                  </div>
+
+                  <!-- Variant Count -->
+                  <div class="bg-success-50 rounded-lg p-3 text-center">
+                    <div class="text-xl font-bold text-success-600">
+                      {{ usageStats.variant_count || 0 }}
+                    </div>
+                    <div class="text-xs text-neutral-600 mt-1">Variants</div>
+                  </div>
+
+                  <!-- Regeneration Count -->
+                  <div class="bg-neutral-50 rounded-lg p-3 text-center">
+                    <div class="text-xl font-bold text-neutral-900">
+                      {{ usageStats.regeneration_count || 0 }}
+                    </div>
+                    <div class="text-xs text-neutral-600 mt-1">Regenerations</div>
                   </div>
                 </div>
 
-                <div class="pt-4 border-t border-neutral-200">
-                  <div class="flex items-center justify-between text-sm mb-2">
-                    <span class="text-neutral-600">Status</span>
+                <!-- Additional Info -->
+                <div class="pt-4 border-t border-neutral-200 space-y-2 text-xs">
+                  <div v-if="usageStats.first_generated_at" class="flex justify-between">
+                    <span class="text-neutral-600">First generated:</span>
+                    <span class="text-neutral-900 font-medium">
+                      {{ formatDate(usageStats.first_generated_at) }}
+                    </span>
+                  </div>
+                  <div v-if="usageStats.last_regenerated_at" class="flex justify-between">
+                    <span class="text-neutral-600">Last regenerated:</span>
+                    <span class="text-neutral-900 font-medium">
+                      {{ formatDate(usageStats.last_regenerated_at) }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-neutral-600">Status:</span>
                     <span :class="environment.is_active ? 'text-success-600 font-semibold' : 'text-neutral-600'">
                       {{ environment.is_active ? 'Active' : 'Inactive' }}
                     </span>
                   </div>
-                  <div class="flex items-center justify-between text-sm">
-                    <span class="text-neutral-600">Created</span>
-                    <span class="text-neutral-900">{{ formatDate(environment.created_at) }}</span>
-                  </div>
                 </div>
+              </div>
+
+              <!-- No Stats Yet -->
+              <div v-else class="text-center py-6 text-neutral-500">
+                <p class="text-sm">No statistics available</p>
               </div>
             </div>
 
