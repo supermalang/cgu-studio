@@ -1,253 +1,143 @@
-# UCG Studio - Development Guide for Claude Code
+# UCG Studio - AI Assistant Development Guide
 
-**Project:** UCG Studio - AI-Powered Video Production Platform  
-**Deadline:** February 14, 2026 (MVP)  
-**Developer:** Solo (you + Claude Code)  
-**Status:** Starting from zero
-
----
-
-## 🎯 Project Mission
-
-Build an AI-powered platform that helps creators produce consistent short-form video content by:
-1. Breaking scripts into optimized video segments
-2. Generating audio voiceovers (ElevenLabs)
-3. Generating AI video clips (Google Veo 3)
-4. Managing production workflow in an intuitive table interface
-5. Exporting organized, numbered clips ready for editing
+**Project:** UCG Studio - AI-Powered Video Production Platform
+**Deadline:** February 14, 2026 (MVP)
+**Status:** Phase 1 Complete (Authentication ✅)
 
 ---
 
-## 📚 Available Documentation
+## Quick Start for AI Assistants
 
-You have access to these specification files:
+This guide helps you understand UCG Studio and assist with development efficiently.
 
-1. **README.md** - Complete project specification (76KB)
-2. **database/schema.sql** - Full PostgreSQL schema with RLS
-3. **deployment/docker-compose.yml** - Production deployment config
-4. **docs/FILE_STRUCTURE.md** - Recommended file organization
-5. **docs/DEPLOYMENT_GUIDE.md** - Step-by-step deployment
-6. **docs/QUICK_START.md** - Fast-track development guide
+### Essential Reading Order
 
-**Read these files FIRST before writing any code.**
+1. **This file first** - Overview and development approach (10 min)
+2. **[README.md](README.md)** - Project overview and getting started (5 min)
+3. **[docs/README.md](docs/README.md)** - Complete technical specification (as needed)
+4. **[database/schema.sql](database/schema.sql)** - Database structure (when working with data)
 
----
+### Project Context
 
-## 🏗️ Technology Stack
+**What it does:** Helps creators turn scripts into professional short-form videos using AI
 
-### Frontend
-```yaml
-framework: Vue 3
-build_tool: Vite
-styling: TailwindCSS
-state_management: Pinia
-routing: Vue Router
-client_sdk: @supabase/supabase-js
-```
+**Core workflow:**
+1. User pastes script → AI breaks it into segments
+2. Each segment gets 3 camera angle options
+3. User generates audio (ElevenLabs) + video (Google Veo 3)
+4. Export organized clips ready for editing
 
-### Backend (Serverless)
-```yaml
-database: Supabase (PostgreSQL 15)
-authentication: Supabase Auth (Email + Google OAuth)
-storage: Supabase Storage (3 buckets)
-realtime: Supabase Realtime (WebSocket subscriptions)
-automation: n8n (self-hosted workflows)
-```
-
-### Infrastructure
-```yaml
-hosting: DigitalOcean (Docker)
-containerization: Docker Compose
-reverse_proxy: Nginx
-ssl: Let's Encrypt
-monitoring: Grafana + Loki + Sentry
-dns: Cloudflare
-```
+**Tech stack:** Vue 3, Supabase (PostgreSQL + Auth + Storage + Realtime), n8n automation, TailwindCSS
 
 ---
 
-## 📁 Project Structure to Create
+## Project Structure
 
 ```
-ucg-studio/
-├── frontend/                          # Vue 3 application
+/workspace/workspace/ucg-studio/
+├── frontend/                 # Vue 3 application
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── common/                # Reusable UI components
-│   │   │   ├── auth/                  # Login, Signup, Password Reset
-│   │   │   ├── dashboard/             # Dashboard widgets
-│   │   │   ├── project/               # Project creation & settings
-│   │   │   └── production/            # Production table components
-│   │   ├── views/                     # Route pages
-│   │   ├── stores/                    # Pinia stores
-│   │   ├── composables/               # Reusable composition functions
-│   │   ├── utils/                     # Helper functions
+│   │   ├── components/      # Reusable Vue components
+│   │   │   ├── auth/        # ✅ Login, Signup, Password Reset
+│   │   │   ├── common/      # ✅ AppHeader
+│   │   │   ├── dashboard/   # Project cards, stats widgets
+│   │   │   ├── project/     # Project creation, settings
+│   │   │   └── production/  # Production table (core feature)
+│   │   ├── views/           # Route pages
+│   │   │   ├── auth/        # ✅ Auth pages
+│   │   │   ├── dashboard/   # ✅ Dashboard
+│   │   │   ├── project/     # Project detail view
+│   │   │   ├── settings/    # User settings
+│   │   │   └── admin/       # Admin dashboard
+│   │   ├── stores/          # Pinia state management
+│   │   │   └── auth.js      # ✅ Authentication store
+│   │   ├── composables/     # Reusable composition functions
+│   │   ├── utils/           # Helper functions
 │   │   ├── lib/
-│   │   │   └── supabase.js            # Supabase client initialization
+│   │   │   └── supabase.js  # ✅ Supabase client
 │   │   ├── router/
-│   │   │   └── index.js               # Vue Router config
-│   │   ├── assets/
-│   │   │   └── styles/
-│   │   │       └── main.css           # Tailwind imports
-│   │   ├── App.vue
-│   │   └── main.js
-│   ├── public/
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   ├── Dockerfile
-│   └── .env.example
+│   │   │   └── index.js     # ✅ Vue Router config
+│   │   └── assets/
+│   │       └── styles/
+│   │           └── main.css # Tailwind + custom styles
+│   ├── .env.local           # ✅ Environment variables
+│   ├── package.json         # ✅ Dependencies
+│   ├── vite.config.js       # ✅ Vite configuration
+│   └── tailwind.config.js   # ✅ TailwindCSS config
 ├── database/
-│   └── schema.sql                     # Already provided
+│   └── schema.sql           # ✅ Complete PostgreSQL schema
 ├── deployment/
-│   ├── docker-compose.yml             # Already provided
-│   ├── nginx.conf                     # To be created
-│   ├── .env.example                   # Already provided
-│   └── ssl/                           # Certbot managed
-├── docs/                              # Already provided
-├── scripts/
-│   ├── setup.sh
-│   ├── deploy.sh
-│   └── backup.sh
-└── README.md                          # Already provided
+│   ├── docker-compose.yml   # ✅ Production deployment
+│   └── .env.example         # Environment template
+├── docs/                    # Documentation
+│   ├── README.md            # Complete technical specification
+│   ├── DESIGN_SYSTEM.md     # UI design system
+│   ├── COMPONENT_LIBRARY.md # Component reference
+│   ├── PROGRESS.md          # Development tracker
+│   ├── GETTING_STARTED.md   # Setup guide
+│   ├── QUICK_FIX_GUIDE.md   # Common issues
+│   └── START_HERE.md        # Quick start
+├── CLAUDE.md                # This file
+└── README.md                # Project overview
 ```
 
 ---
 
-## 🎨 Design System (From Images Provided)
+## What's Already Built (Phase 1 ✅)
 
-### Colors
-```javascript
-// tailwind.config.js colors
-colors: {
-  primary: {
-    DEFAULT: '#1313EC',  // Primary Blue
-  },
-  success: {
-    DEFAULT: '#22D34E',  // Success Green
-  },
-  neutral: {
-    50: '#F8F8F8',       // Background
-    900: '#111118',      // Text
-  }
-}
-```
+### Completed Features
+- ✅ Vue 3 project with Vite
+- ✅ Supabase client configuration
+- ✅ Authentication system (email + Google OAuth)
+- ✅ Protected routes with auth guards
+- ✅ Dashboard with project list
+- ✅ User profile header with credit balance
+- ✅ Complete design system (TailwindCSS)
+- ✅ Production build verified
 
-### Typography
-```
-Font: Inter
-H1 Display: 36px/40px, 900 weight
-H1 Heading: 24px/32px, 700 weight
-Body: 16px/24px, 400 weight
-Small: 14px/20px, 400 weight
-```
-
-### Key Components Identified from Images
-1. Production Table Row (with shot preview, status badges)
-2. Media Card Component (video thumbnails with states)
-3. AI Generation Badges (Recommended, Generating, Success, Error)
-4. Prompt Selector (Variant A/B/C picker)
-5. Button variants (Primary, Secondary, Disabled)
+### File References
+- Auth Store: [frontend/src/stores/auth.js](frontend/src/stores/auth.js)
+- Router: [frontend/src/router/index.js](frontend/src/router/index.js)
+- Dashboard: [frontend/src/views/dashboard/DashboardView.vue](frontend/src/views/dashboard/DashboardView.vue)
+- App Header: [frontend/src/components/common/AppHeader.vue](frontend/src/components/common/AppHeader.vue)
 
 ---
 
-## 🚀 MVP Features (Priority Order)
+## Next Phase: Core Workflow (In Progress)
 
-### Phase 1: Foundation (Build First)
-1. **Authentication System**
-   - Login page
-   - Signup page
-   - Password reset
-   - Supabase Auth integration
-   - Protected routes
+### Immediate Priorities
 
-2. **Dashboard**
-   - User profile header with credit balance
-   - Project list (empty state + populated)
-   - "New Project" button
-   - Quick stats widget
+1. **Project Creation Flow**
+   - Create modal component with multi-step form
+   - Fields: name, script, AI budget (20-100%), aspect ratio, resolution, language
+   - Integrate n8n webhook for script breakdown
+   - Save project to Supabase
 
-### Phase 2: Core Workflow
-3. **Create Project Flow**
-   - Multi-step modal/form
-   - Project settings (name, language, AI budget, aspect ratio, resolution)
-   - Script input (textarea with character count)
-   - Script breakdown API call to n8n
+2. **Production Table (Most Complex Feature)**
+   - Data table showing all shots
+   - Columns: checkbox, shot#, duration, script text, prompt selector, generate button, preview
+   - Inline editing of script text
+   - Prompt selector dropdown (3 alternatives per shot)
+   - Generation buttons with status indicators
+   - Real-time updates via Supabase Realtime
 
-4. **Production Table (THE CORE FEATURE)**
-   - Data table component
-   - Shot row with:
-     - Shot number, duration, script text
-     - Prompt selector (3 alternatives dropdown)
-     - Generation button + status indicator
-     - Audio/video preview players
-   - Bulk selection & generation
-   - Real-time status updates via Supabase subscriptions
+3. **Audio/Video Generation**
+   - Credit deduction before generation
+   - n8n webhook calls (parallel audio + video)
+   - Upload returned base64 media to Supabase Storage
+   - Update shot records with file URLs
+   - Handle failures with automatic credit refund
 
-5. **Audio/Video Generation**
-   - n8n webhook integration
-   - File upload to Supabase Storage
-   - Progress tracking
-   - Error handling with credit refund
-
-### Phase 3: Export & Credits
-6. **Export System**
-   - Client-side ZIP creation (JSZip library)
+4. **Export System**
+   - Client-side ZIP creation using JSZip
    - File naming: shot_01_video.mp4, shot_01_audio.mp3
    - Download trigger
 
-7. **Credit System**
-   - Credit balance display
-   - Transaction history view
-   - Low credit warnings
-   - Payment integration (Wave/Orange Money webhooks)
-
-8. **Settings Pages**
-   - Profile settings
-   - ElevenLabs API key integration
-   - Notification preferences
-
-### Phase 4: Admin
-9. **Admin Dashboard**
-   - Platform stats
-   - User management table
-   - Platform settings editor (JSONB)
-   - Failed jobs viewer
+For detailed requirements, see [docs/README.md](docs/README.md)
 
 ---
 
-## 💾 Database Understanding
-
-**Key Tables You'll Interact With:**
-
-```sql
--- User data
-profiles (id, full_name, credit_balance, elevenlabs_api_key, role, status)
-
--- Projects
-projects (id, user_id, name, slug, script, ai_budget_percentage, status, total_shots)
-
--- Video segments
-shots (
-  id, project_id, shot_number, script_text, duration_seconds,
-  ai_prompt_1, ai_prompt_2, ai_prompt_3, selected_prompt,
-  generation_status, audio_file_url, video_file_url,
-  voice_settings JSONB
-)
-
--- Credits
-credit_transactions (user_id, transaction_type, amount, previous_balance, new_balance)
-
--- Payments
-payment_transactions (user_id, payment_provider, credits_purchased, payment_status)
-```
-
-**Important:** Database has RLS enabled. All queries run with `auth.uid()` context.
-
----
-
-## 🔌 API Integration Patterns
+## Key Technical Patterns
 
 ### Supabase Client Usage
 
@@ -259,6 +149,26 @@ export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 )
+```
+
+### Real-time Subscriptions
+
+```javascript
+// In Vue component
+const channel = supabase
+  .channel('shots-realtime')
+  .on('postgres_changes', {
+    event: 'UPDATE',
+    schema: 'public',
+    table: 'shots',
+    filter: `project_id=eq.${projectId}`
+  }, (payload) => {
+    updateShotInState(payload.new)
+  })
+  .subscribe()
+
+// Cleanup
+onUnmounted(() => channel.unsubscribe())
 ```
 
 ### n8n Webhook Calls
@@ -276,13 +186,9 @@ export function useN8n() {
         'X-API-Key': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        project_id: projectId,
-        script,
-        ai_budget_percentage: aiBudget
-      })
+      body: JSON.stringify({ project_id: projectId, script, ai_budget_percentage: aiBudget })
     })
-    
+
     if (!response.ok) throw new Error('Script breakdown failed')
     return response.json()
   }
@@ -291,130 +197,148 @@ export function useN8n() {
 }
 ```
 
-### Real-time Subscriptions
+### Credit Deduction Flow
 
-```javascript
-// In component
-const channel = supabase
-  .channel('shots-realtime')
-  .on('postgres_changes', {
-    event: 'UPDATE',
-    schema: 'public',
-    table: 'shots',
-    filter: `project_id=eq.${projectId}`
-  }, (payload) => {
-    // Update local state when shot status changes
-    updateShotInState(payload.new)
-  })
-  .subscribe()
-
-// Cleanup
-onUnmounted(() => channel.unsubscribe())
+```
+1. User clicks "Generate"
+2. Check: user has enough credits?
+3. If yes: Immediately deduct credits (UPDATE profiles)
+4. Database trigger: Insert credit_transaction record
+5. Database trigger: Update user balance
+6. Call n8n webhooks (audio + video)
+7. n8n returns base64 media
+8. Upload to Supabase Storage
+9. Update shot with file URLs
+10. If failed: Trigger auto-refunds credits
 ```
 
 ---
 
-## 🎯 Critical Implementation Details
+## Database Schema Overview
 
-### 1. Credit Deduction Flow
-```
-User clicks "Generate" 
-  → Client checks: user has enough credits?
-  → If yes: Immediately deduct credits (UPDATE profiles)
-  → Trigger: Inserts credit_transaction record
-  → Trigger: Updates user balance
-  → Call n8n webhook
-  → n8n returns base64 media
-  → Upload to Supabase Storage
-  → Update shot with file URLs
-  → If failed: Trigger refunds credits automatically
+### Key Tables
+
+```sql
+-- User data
+profiles (
+  id, full_name, email, credit_balance,
+  elevenlabs_api_key, role, status, total_storage_used
+)
+
+-- Projects
+projects (
+  id, user_id, name, slug, script, status,
+  ai_budget_percentage, target_aspect_ratio, target_resolution,
+  total_shots, total_credits_used
+)
+
+-- Video segments
+shots (
+  id, project_id, shot_number, script_text, duration_seconds,
+  ai_prompt_1, ai_prompt_2, ai_prompt_3, selected_prompt,
+  shot_category_1, shot_category_2, shot_category_3,
+  generation_status, audio_file_url, video_file_url,
+  voice_settings JSONB
+)
+
+-- Credits
+credit_transactions (
+  user_id, transaction_type, amount,
+  previous_balance, new_balance, reason
+)
+
+-- Payments
+payment_transactions (
+  user_id, payment_provider, payment_amount_usd,
+  credits_purchased, payment_status
+)
 ```
 
-### 2. Generation Status States
-```
-pending → generating → completed
-                    ↘ failed (auto-refund)
-```
+**Important:** All tables have Row Level Security (RLS) enabled. Users only see their own data.
 
-### 3. File Storage Pattern
-```
-Bucket: generated-media
-Path: /{user_id}/shot_{shot_number}_{type}.{ext}
-Example: /uuid-123/shot_01_video.mp4
-         /uuid-123/shot_01_audio.mp3
-```
+---
 
-### 4. Project Slug Generation
+## Design System
+
+### Colors
 ```javascript
-// Pattern: {username}-{project-name}-{number}
-// Example: elhadji-coffee-tutorial-1
-
-function generateSlug(userId, projectName) {
-  const username = user.email.split('@')[0]
-  const base = `${username}-${slugify(projectName)}`
-  
-  // Check existing count
-  const count = await countExistingWithBase(base)
-  return `${base}-${count + 1}`
+// tailwind.config.js
+colors: {
+  primary: {
+    DEFAULT: '#1313EC',  // Blue (9 shades: 50-900)
+  },
+  success: {
+    DEFAULT: '#22D34E',  // Green (9 shades: 50-900)
+  },
+  error: {
+    DEFAULT: '#F04438',  // Red (9 shades: 50-900)
+  },
+  warning: {
+    DEFAULT: '#F79009',  // Orange (9 shades: 50-900)
+  },
+  neutral: {
+    50: '#F8F8F8',       // 10 shades: 50-900
+    900: '#111118',
+  }
 }
 ```
 
----
+### Pre-built Component Classes
+```css
+/* Buttons */
+.btn-primary         /* Primary action button */
+.btn-secondary       /* Secondary action button */
+.btn-ghost           /* Minimal button */
+.btn-danger          /* Destructive action */
 
-## 🚨 Critical Rules & Constraints
+/* Inputs */
+.input-field         /* Standard text input */
+.input-label         /* Form label */
+.input-error         /* Error message */
 
-### Security
-- ✅ **All database queries use RLS** - Users only see their own data
-- ✅ **Never expose API keys client-side** - Store in environment variables
-- ✅ **Validate all inputs** - Both client and server-side
-- ✅ **Use Supabase Auth exclusively** - Don't build custom auth
+/* Cards */
+.card                /* Basic card container */
+.card-hover          /* Clickable card with hover */
+.card-interactive    /* Card with press feedback */
 
-### Performance
-- ✅ **Use Supabase Realtime** - Don't poll for updates
-- ✅ **Lazy load components** - Vue's defineAsyncComponent
-- ✅ **Optimize images** - WebP format, proper sizing
-- ✅ **Cache API responses** - Use Pinia stores
+/* Badges */
+.badge-primary       /* Primary badge */
+.status-generating   /* Generating status with animation */
+.status-completed    /* Completed status */
+.status-error        /* Error status */
+```
 
-### UX Requirements
-- ✅ **Show loading states** - Every async operation
-- ✅ **Display errors gracefully** - Toast notifications
-- ✅ **Confirm destructive actions** - Delete project modal
-- ✅ **Auto-save when possible** - Project drafts
-- ✅ **Mobile responsive** - Tailwind breakpoints
-
-### Business Logic
-- ✅ **Credits deducted immediately** - Before generation starts
-- ✅ **Automatic refunds on failure** - Via database trigger
-- ✅ **Storage quota checks** - Before upload (1GB per user)
-- ✅ **Low credit warnings** - At admin-defined threshold
+See [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) for complete reference.
 
 ---
 
-## 📝 Code Quality Standards
+## Development Guidelines
 
 ### Vue Component Structure
+
 ```vue
 <script setup>
 // 1. Imports
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 
-// 2. Composables
-const router = useRouter()
-
-// 3. State
+// 2. State
 const isLoading = ref(false)
 const error = ref(null)
 
-// 4. Computed
+// 3. Computed
 const hasError = computed(() => error.value !== null)
 
-// 5. Methods
+// 4. Methods
 async function fetchData() {
   isLoading.value = true
   try {
-    // Logic here
+    const { data, error: fetchError } = await supabase
+      .from('projects')
+      .select('*')
+
+    if (fetchError) throw fetchError
+    return data
   } catch (err) {
     error.value = err.message
   } finally {
@@ -422,36 +346,27 @@ async function fetchData() {
   }
 }
 
-// 6. Lifecycle
-onMounted(() => {
-  fetchData()
-})
+// 5. Lifecycle
+onMounted(() => fetchData())
 </script>
 
 <template>
   <div class="container">
-    <!-- Clean, semantic HTML -->
+    <!-- Use semantic HTML + Tailwind classes -->
   </div>
 </template>
-
-<style scoped>
-/* Minimal custom CSS, prefer Tailwind */
-</style>
 ```
 
-### Error Handling Pattern
+### Error Handling
+
 ```javascript
 try {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-  
+  const { data, error } = await supabase.from('projects').select('*')
   if (error) throw error
-  
   return data
 } catch (error) {
   console.error('Failed to fetch projects:', error)
-  Sentry.captureException(error)
+  // TODO: Add Sentry integration
   showToast('Failed to load projects. Please try again.', 'error')
 }
 ```
@@ -465,185 +380,178 @@ try {
 
 ---
 
-## 🧪 Testing Checklist
+## Critical Rules
 
-For each feature you build:
+### Security
+- ✅ All database queries use RLS - users only see their own data
+- ✅ Never expose API keys client-side - use environment variables
+- ✅ Validate all inputs - both client and server-side
+- ✅ Use Supabase Auth exclusively
+
+### Performance
+- ✅ Use Supabase Realtime - don't poll for updates
+- ✅ Lazy load route components
+- ✅ Cache API responses in Pinia stores
+
+### UX Requirements
+- ✅ Show loading states for every async operation
+- ✅ Display errors gracefully with toast notifications
+- ✅ Confirm destructive actions with modals
+- ✅ Mobile responsive with Tailwind breakpoints
+
+### Business Logic
+- ✅ Credits deducted immediately before generation
+- ✅ Automatic refunds on failure via database trigger
+- ✅ Storage quota checks before upload (1GB per user)
+
+---
+
+## Common Tasks
+
+### Adding a New Page
+
+1. Create view component in `src/views/[feature]/`
+2. Add route in `src/router/index.js`
+3. Add navigation link if needed
+
+### Creating a New API Composable
+
+```javascript
+// src/composables/useProjects.js
+import { ref } from 'vue'
+import { supabase } from '@/lib/supabase'
+
+export function useProjects() {
+  const projects = ref([])
+  const isLoading = ref(false)
+
+  async function fetchProjects() {
+    isLoading.value = true
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    projects.value = data
+    isLoading.value = false
+  }
+
+  return {
+    projects,
+    isLoading,
+    fetchProjects
+  }
+}
+```
+
+### Adding Real-time Updates
+
+```javascript
+// In component setup
+const subscription = supabase
+  .channel('table-changes')
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'shots',
+    filter: `project_id=eq.${projectId}`
+  }, handleUpdate)
+  .subscribe()
+
+onUnmounted(() => subscription.unsubscribe())
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Build fails with Tailwind error**
+- Ensure Tailwind v3 is installed: `npm install -D tailwindcss@3`
+
+**"relation 'profiles' does not exist" error**
+- See [docs/QUICK_FIX_GUIDE.md](docs/QUICK_FIX_GUIDE.md)
+
+**Supabase RLS blocking queries**
+- Check that the user is authenticated
+- Verify RLS policies allow the operation
+- Review policies in Supabase Dashboard > Authentication > Policies
+
+**Real-time not working**
+- Enable Realtime on the table in Supabase Dashboard > Database > Replication
+- Check RLS policies allow SELECT on the table
+
+---
+
+## Testing Checklist
+
+Before considering a feature complete:
 
 - [ ] Happy path works (successful flow)
 - [ ] Error states handled (API failures, network errors)
 - [ ] Loading states shown (spinners, skeletons)
-- [ ] Empty states displayed (no projects, no shots)
+- [ ] Empty states displayed (no data)
 - [ ] Mobile responsive (test at 375px, 768px, 1440px)
-- [ ] Keyboard accessible (tab navigation works)
 - [ ] Real-time updates work (Supabase subscriptions)
 - [ ] Credits deduct/refund correctly
 - [ ] RLS policies enforced (users can't see others' data)
 
 ---
 
-## 🚀 Development Workflow
+## Documentation References
 
-### Day 1: Setup
-```bash
-# 1. Initialize Vue project
-npm create vite@latest frontend -- --template vue
-cd frontend
-npm install
+### Quick Guides
+- [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) - Setup instructions
+- [docs/PROGRESS.md](docs/PROGRESS.md) - Development tracker
+- [docs/START_HERE.md](docs/START_HERE.md) - Quick start for developers
 
-# 2. Install dependencies
-npm install @supabase/supabase-js pinia vue-router
-npm install -D tailwindcss postcss autoprefixer
-npx tailwindcss init -p
+### Technical Specs
+- [docs/README.md](docs/README.md) - Complete specification (2100+ lines)
+- [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) - UI design system
+- [docs/COMPONENT_LIBRARY.md](docs/COMPONENT_LIBRARY.md) - Component reference
+- [database/schema.sql](database/schema.sql) - Database structure
 
-# 3. Setup Supabase
-# Create lib/supabase.js with client initialization
-
-# 4. Configure Tailwind
-# Add design system colors from images
-
-# 5. Create basic layout
-# App.vue, router, stores
-```
-
-### Day 2-3: Authentication
-```bash
-# 1. Build auth pages (Login, Signup, Password Reset)
-# 2. Implement Supabase Auth
-# 3. Setup protected routes
-# 4. Create user profile header
-```
-
-### Day 4-5: Dashboard & Projects
-```bash
-# 1. Dashboard view with project list
-# 2. Create project modal/form
-# 3. Project detail view
-# 4. Script input & breakdown
-```
-
-### Day 6-8: Production Table (Most Complex)
-```bash
-# 1. Production table component
-# 2. Shot row components
-# 3. Prompt selector
-# 4. Generation buttons & status
-# 5. Audio/video players
-# 6. Real-time updates
-```
-
-### Day 9-10: Generation & Storage
-```bash
-# 1. n8n webhook integration
-# 2. File upload to Supabase Storage
-# 3. Credit deduction logic
-# 4. Error handling & refunds
-```
-
-### Day 11-12: Export & Credits
-```bash
-# 1. Export functionality (JSZip)
-# 2. Credit system UI
-# 3. Payment integration
-# 4. Settings pages
-```
-
-### Day 13-14: Polish & Deploy
-```bash
-# 1. Admin dashboard
-# 2. Bug fixes
-# 3. Performance optimization
-# 4. Production deployment
-```
+### Deployment
+- [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) - Production deployment
+- [deployment/docker-compose.yml](deployment/docker-compose.yml) - Docker config
 
 ---
 
-## 🎯 Your First Task
+## Pro Tips
 
-**Start here:**
-
-1. **Read README.md completely** (understand the full spec)
-2. **Review database/schema.sql** (understand data model)
-3. **Initialize Vue project** (follow structure above)
-4. **Build authentication** (login, signup, protected routes)
-5. **Create dashboard** (empty state + project list)
-
-Once these 5 are done, we'll tackle the production table.
-
----
-
-## 💡 Pro Tips for Claude Code
-
-1. **Read all docs first** - Don't guess, the specs are comprehensive
-2. **Follow the design system** - Use exact colors from images
-3. **Build iteratively** - Complete one feature before starting next
-4. **Test as you go** - Run app locally after each component
-5. **Ask for clarification** - If spec is unclear, ask before coding
-6. **Commit frequently** - Small, focused commits
-7. **Use TypeScript sparingly** - Only if it helps, don't over-complicate
-8. **Prefer composition API** - <script setup> syntax
-9. **Keep components small** - Under 200 lines each
-10. **Reference the schema** - Database is the source of truth
+1. **Read relevant docs first** - Don't guess, the specs are comprehensive
+2. **Follow the design system** - Use pre-built classes from main.css
+3. **Build iteratively** - Complete one feature before starting the next
+4. **Test as you go** - Run the app after each component
+5. **Reference the schema** - Database is the source of truth
+6. **Use Supabase Realtime** - Don't poll, subscribe to changes
+7. **Keep components small** - Under 200 lines each
+8. **Leverage RLS** - Let the database handle permissions
 
 ---
 
-## 🆘 When You Need Help
+## Success Criteria
 
-**For understanding requirements:**
-- Re-read relevant section in README.md
-- Check database/schema.sql for data structures
-- Review docs/FILE_STRUCTURE.md for organization
-
-**For implementation details:**
-- Vue 3 docs: https://vuejs.org
-- Supabase docs: https://supabase.com/docs
-- TailwindCSS docs: https://tailwindcss.com
-- Pinia docs: https://pinia.vuejs.org
-
-**For debugging:**
-- Check browser console
-- Check Supabase logs (Dashboard → Logs)
-- Check network tab (API calls)
-- Review RLS policies (might be blocking query)
-
----
-
-## ✅ Success Criteria
-
-**You'll know you're on track when:**
-
-- [ ] Users can signup/login successfully
-- [ ] Dashboard loads with real data from Supabase
-- [ ] Projects can be created and saved
-- [ ] Script breakdown returns segments from n8n
-- [ ] Production table displays all shots
-- [ ] Generation triggers correctly
-- [ ] Real-time updates work (status changes live)
-- [ ] Credits deduct and refund properly
-- [ ] Export downloads ZIP file
+**MVP is ready when:**
+- [ ] Users can create projects with script breakdown
+- [ ] Production table displays all shots with 3 prompt options
+- [ ] Audio + video generation works end-to-end
+- [ ] Real-time updates show generation progress
+- [ ] Credits deduct and refund correctly
+- [ ] Export downloads ZIP with numbered files
 - [ ] Mobile layout doesn't break
-- [ ] No errors in console
-- [ ] App loads in <2 seconds
+- [ ] No errors in browser console
 
 ---
 
-## 🎉 Ready to Build!
+## Ready to Build!
 
-You have:
-- ✅ Complete specification (README.md)
-- ✅ Production-ready database schema
-- ✅ Clear development roadmap
-- ✅ Design system reference (from images)
-- ✅ All technical requirements documented
+Start with the Project Creation modal, then tackle the Production Table (the core feature).
 
-**Now go build UCG Studio!** 🚀
+For questions, consult [docs/README.md](docs/README.md) for detailed specifications.
 
-Start with authentication, build the production table carefully (it's the core), and ship by Feb 14th.
-
-You got this! 💪
-
----
-
-**Last Updated:** January 20, 2026  
-**For:** Claude Code (Anthropic)  
-**Project:** UCG Studio MVP  
-**Timeline:** 23 days to launch
+**Last Updated:** January 20, 2026
+**Current Phase:** 1 of 4 (Foundation Complete ✅)
+**Next Milestone:** Core workflow (Project creation + Production table)
