@@ -1,4 +1,4 @@
-# UCG Studio - Deployment Guide
+# Jelika - Deployment Guide
 
 **Target:** Production deployment on DigitalOcean VM  
 **Timeline:** Complete by February 14, 2026  
@@ -8,7 +8,7 @@
 
 ## Pre-Deployment Checklist
 
-- [ ] Domain purchased (ucgstudio.com)
+- [ ] Domain purchased (jelika.app)
 - [ ] DigitalOcean droplet created (4 CPU, 8GB RAM, 100GB SSD, Ubuntu 22.04)
 - [ ] Supabase project created
 - [ ] Database schema applied
@@ -47,12 +47,12 @@ sh get-docker.sh
 apt install docker-compose -y
 
 # Create non-root user
-adduser ucgstudio
-usermod -aG sudo ucgstudio
-usermod -aG docker ucgstudio
+adduser jelika
+usermod -aG sudo jelika
+usermod -aG docker jelika
 
 # Switch to new user
-su - ucgstudio
+su - jelika
 ```
 
 ### 1.3 Configure Firewall
@@ -73,7 +73,7 @@ sudo ufw enable
 ssh-keygen -t ed25519 -C "your_email@example.com"
 
 # Copy to server
-ssh-copy-id ucgstudio@your-server-ip
+ssh-copy-id jelika@your-server-ip
 
 # On server, disable password authentication
 sudo nano /etc/ssh/sshd_config
@@ -90,15 +90,15 @@ sudo systemctl restart sshd
 1. Add domain to Cloudflare
 2. Update nameservers at domain registrar
 3. Create DNS A records:
-   - `app.ucgstudio.com` → Server IP
-   - `n8n.ucgstudio.com` → Server IP
-   - `ucgstudio.com` → Server IP (marketing site, future)
+   - `app.jelika.app` → Server IP
+   - `n8n.jelika.app` → Server IP
+   - `jelika.app` → Server IP (marketing site, future)
 
 ### 2.2 Verify DNS
 
 ```bash
-dig app.ucgstudio.com
-dig n8n.ucgstudio.com
+dig app.jelika.app
+dig n8n.jelika.app
 ```
 
 ---
@@ -108,9 +108,9 @@ dig n8n.ucgstudio.com
 ```bash
 # Clone repository
 cd /var/www
-sudo git clone https://github.com/your-username/ucg-studio.git
-sudo chown -R ucgstudio:ucgstudio ucg-studio
-cd ucg-studio
+sudo git clone https://github.com/your-username/jelika.git
+sudo chown -R jelika:jelika jelika
+cd jelika
 
 # Create environment file
 cd deployment
@@ -162,25 +162,25 @@ sudo apt install certbot -y
 
 # Generate certificates
 sudo certbot certonly --standalone \
-  -d app.ucgstudio.com \
-  -d n8n.ucgstudio.com \
+  -d app.jelika.app \
+  -d n8n.jelika.app \
   --email your-email@example.com \
   --agree-tos
 
 # Certificates saved to:
-# /etc/letsencrypt/live/app.ucgstudio.com/fullchain.pem
-# /etc/letsencrypt/live/app.ucgstudio.com/privkey.pem
+# /etc/letsencrypt/live/app.jelika.app/fullchain.pem
+# /etc/letsencrypt/live/app.jelika.app/privkey.pem
 ```
 
 ### 4.2 Copy Certificates to Deployment
 
 ```bash
-sudo mkdir -p /var/www/ucg-studio/deployment/ssl
-sudo cp /etc/letsencrypt/live/app.ucgstudio.com/fullchain.pem \
-   /var/www/ucg-studio/deployment/ssl/
-sudo cp /etc/letsencrypt/live/app.ucgstudio.com/privkey.pem \
-   /var/www/ucg-studio/deployment/ssl/
-sudo chown -R ucgstudio:ucgstudio /var/www/ucg-studio/deployment/ssl
+sudo mkdir -p /var/www/jelika/deployment/ssl
+sudo cp /etc/letsencrypt/live/app.jelika.app/fullchain.pem \
+   /var/www/jelika/deployment/ssl/
+sudo cp /etc/letsencrypt/live/app.jelika.app/privkey.pem \
+   /var/www/jelika/deployment/ssl/
+sudo chown -R jelika:jelika /var/www/jelika/deployment/ssl
 ```
 
 ---
@@ -190,7 +190,7 @@ sudo chown -R ucgstudio:ucgstudio /var/www/ucg-studio/deployment/ssl
 ### 5.1 Build Frontend
 
 ```bash
-cd /var/www/ucg-studio/frontend
+cd /var/www/jelika/frontend
 npm install
 npm run build
 ```
@@ -198,7 +198,7 @@ npm run build
 ### 5.2 Start Docker Containers
 
 ```bash
-cd /var/www/ucg-studio/deployment
+cd /var/www/jelika/deployment
 docker-compose up -d
 ```
 
@@ -214,8 +214,8 @@ docker-compose logs -f n8n
 docker-compose logs -f nginx
 
 # Test endpoints
-curl -I https://app.ucgstudio.com
-curl -I https://n8n.ucgstudio.com
+curl -I https://app.jelika.app
+curl -I https://n8n.jelika.app
 ```
 
 ---
@@ -251,7 +251,7 @@ curl -I https://n8n.ucgstudio.com
 -- In Supabase SQL Editor
 INSERT INTO auth.users (email, encrypted_password, email_confirmed_at)
 VALUES (
-  'admin@ucgstudio.com',
+  'admin@jelika.app',
   crypt('your_admin_password', gen_salt('bf')),
   NOW()
 );
@@ -259,7 +259,7 @@ VALUES (
 -- Set as admin
 UPDATE profiles
 SET role = 'admin'
-WHERE id = (SELECT id FROM auth.users WHERE email = 'admin@ucgstudio.com');
+WHERE id = (SELECT id FROM auth.users WHERE email = 'admin@jelika.app');
 ```
 
 ---
@@ -269,7 +269,7 @@ WHERE id = (SELECT id FROM auth.users WHERE email = 'admin@ucgstudio.com');
 ### 7.1 Access n8n Dashboard
 
 ```
-https://n8n.ucgstudio.com
+https://n8n.jelika.app
 Login: admin / [your_password_from_.env]
 ```
 
@@ -298,7 +298,7 @@ Login: admin / [your_password_from_.env]
 
 ```bash
 # Test script breakdown
-curl -X POST https://n8n.ucgstudio.com/webhook/script-breakdown \
+curl -X POST https://n8n.jelika.app/webhook/script-breakdown \
   -H "X-API-Key: your_n8n_api_key" \
   -H "Content-Type: application/json" \
   -d '{"script": "Test script", "ai_budget_percentage": 80}'
@@ -331,8 +331,8 @@ Login: admin / [your_grafana_password]
 
 1. Go to uptimerobot.com
 2. Add monitors:
-   - `https://app.ucgstudio.com` (5 min interval)
-   - `https://n8n.ucgstudio.com` (5 min interval)
+   - `https://app.jelika.app` (5 min interval)
+   - `https://n8n.jelika.app` (5 min interval)
 
 ---
 
@@ -342,7 +342,7 @@ Login: admin / [your_grafana_password]
 
 ```bash
 # Create backup script
-nano /var/www/ucg-studio/scripts/backup-supabase.sh
+nano /var/www/jelika/scripts/backup-supabase.sh
 ```
 
 ```bash
@@ -352,14 +352,14 @@ DATE=$(date +%Y%m%d)
 pg_dump -h db.your-project.supabase.co \
   -U postgres \
   -d postgres \
-  > /var/www/ucg-studio/backups/database/backup-$DATE.sql
+  > /var/www/jelika/backups/database/backup-$DATE.sql
 
 # Upload to S3
-aws s3 cp /var/www/ucg-studio/backups/database/backup-$DATE.sql \
-  s3://ucg-studio-backups/database/
+aws s3 cp /var/www/jelika/backups/database/backup-$DATE.sql \
+  s3://jelika-backups/database/
 
 # Delete backups older than 30 days
-find /var/www/ucg-studio/backups/database/ -type f -mtime +30 -delete
+find /var/www/jelika/backups/database/ -type f -mtime +30 -delete
 ```
 
 ### 9.2 Setup Cron Jobs
@@ -370,10 +370,10 @@ crontab -e
 
 ```cron
 # Daily backup at 2 AM
-0 2 * * * /var/www/ucg-studio/scripts/backup-supabase.sh
+0 2 * * * /var/www/jelika/scripts/backup-supabase.sh
 
 # Weekly n8n workflow backup
-0 3 * * 0 /var/www/ucg-studio/scripts/backup-n8n.sh
+0 3 * * 0 /var/www/jelika/scripts/backup-n8n.sh
 ```
 
 ---
@@ -383,7 +383,7 @@ crontab -e
 ### 10.1 User Flow Testing
 
 1. **Signup:**
-   - Go to https://app.ucgstudio.com/signup
+   - Go to https://app.jelika.app/signup
    - Create test account
    - Verify email works
 
@@ -410,7 +410,7 @@ crontab -e
 
 ```bash
 # Load test with Apache Bench
-ab -n 100 -c 10 https://app.ucgstudio.com/
+ab -n 100 -c 10 https://app.jelika.app/
 ```
 
 ---
@@ -497,8 +497,8 @@ docker-compose logs n8n
 sudo certbot renew
 
 # Copy to deployment
-sudo cp /etc/letsencrypt/live/app.ucgstudio.com/* \
-   /var/www/ucg-studio/deployment/ssl/
+sudo cp /etc/letsencrypt/live/app.jelika.app/* \
+   /var/www/jelika/deployment/ssl/
 
 # Restart nginx
 docker-compose restart nginx

@@ -22,7 +22,7 @@ const isLibraryActive = computed(() => {
     <div class="p-6">
       <router-link to="/projects" class="flex items-center space-x-2">
         <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-          <span class="text-white font-bold text-xl">U</span>
+          <span class="text-white font-bold text-xl">J</span>
         </div>
         <div>
           <div class="font-black text-lg text-neutral-900">{{ companyStore.companyName }}</div>
@@ -34,6 +34,19 @@ const isLibraryActive = computed(() => {
     <!-- Navigation -->
     <nav class="flex-1 px-4 space-y-1">
       <router-link
+        to="/calendar"
+        class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all"
+        :class="['calendar', 'post-create', 'post-edit'].includes($route.name)
+          ? 'bg-primary-50 text-primary-600'
+          : 'text-neutral-600 hover:bg-neutral-50'"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <span class="font-medium">Calendar</span>
+      </router-link>
+
+      <router-link
         to="/projects"
         class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all"
         :class="$route.name === 'projects' || $route.name === 'project-detail' || $route.name === 'project-create'
@@ -43,7 +56,7 @@ const isLibraryActive = computed(() => {
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
         </svg>
-        <span class="font-medium">Projects</span>
+        <span class="font-medium">Campaigns</span>
       </router-link>
 
       <!-- Library Section (Collapsible) -->
@@ -99,6 +112,19 @@ const isLibraryActive = computed(() => {
           </router-link>
         </div>
       </div>
+
+      <router-link
+        to="/channels"
+        class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all"
+        :class="$route.name === 'social-accounts'
+          ? 'bg-primary-50 text-primary-600'
+          : 'text-neutral-600 hover:bg-neutral-50'"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342A3 3 0 106.316 10.658m2.368 2.684a3 3 0 11-2.368-2.684m2.368 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684zm0-12a3 3 0 105.368-2.684A3 3 0 0015.316 7.658z" />
+        </svg>
+        <span class="font-medium">Channels</span>
+      </router-link>
 
       <router-link
         to="/billing"

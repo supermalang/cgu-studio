@@ -1,4 +1,4 @@
-# 📁 UCG Studio - Complete Project Specification Package
+# 📁 Jelika - Complete Project Specification Package
 
 **Generated:** January 20, 2026  
 **Version:** 1.0.0  
@@ -9,7 +9,7 @@
 
 ## 📦 What's Included
 
-This package contains **everything** you need to build UCG Studio from zero to production:
+This package contains **everything** you need to build Jelika from zero to production:
 
 ✅ Complete project specification (76KB README)  
 ✅ Production-ready database schema with RLS  
@@ -24,7 +24,7 @@ This package contains **everything** you need to build UCG Studio from zero to p
 ## 📂 Directory Structure
 
 ```
-ucg-studio-spec/
+jelika-spec/
 ├── INDEX.md                    ← You are here
 ├── README.md                   ← Complete spec (76KB, READ THIS FIRST)
 ├── database/
@@ -252,7 +252,7 @@ Everything you need is in this package. Follow the guides, build iteratively, an
 
 **Questions?** Review the README.md or relevant documentation file.
 
-**Let's build UCG Studio! 🚀**
+**Let's build Jelika! 🚀**
 
 ---
 

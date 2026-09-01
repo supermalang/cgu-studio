@@ -1,5 +1,5 @@
 # ============================================================================
-# UCG Studio - Docker Compose Configuration
+# Jelika - Docker Compose Configuration
 # Production Deployment
 # ============================================================================
 
@@ -13,7 +13,7 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
-    container_name: ucg-studio-app
+    container_name: jelika-app
     restart: unless-stopped
     ports:
       - "3000:80"
@@ -21,12 +21,12 @@ services:
       - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
       - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
       - VITE_N8N_API_KEY=${N8N_API_KEY}
-      - VITE_N8N_WEBHOOK_URL=https://n8n.ucgstudio.com
-      - VITE_APP_URL=https://app.ucgstudio.com
+      - VITE_N8N_WEBHOOK_URL=https://n8n.jelika.app
+      - VITE_APP_URL=https://app.jelika.app
       - VITE_SENTRY_DSN=${SENTRY_DSN}
       - NODE_ENV=production
     networks:
-      - ucg-network
+      - jelika-network
     volumes:
       - app-logs:/var/log/nginx
     healthcheck:
@@ -40,7 +40,7 @@ services:
   # --------------------------------------------------------------------------
   n8n:
     image: n8nio/n8n:latest
-    container_name: ucg-studio-n8n
+    container_name: jelika-n8n
     restart: unless-stopped
     ports:
       - "5678:5678"
@@ -48,8 +48,8 @@ services:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=${N8N_USER}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - WEBHOOK_URL=https://n8n.ucgstudio.com
-      - N8N_HOST=n8n.ucgstudio.com
+      - WEBHOOK_URL=https://n8n.jelika.app
+      - N8N_HOST=n8n.jelika.app
       - N8N_PROTOCOL=https
       - NODE_ENV=production
       - EXECUTIONS_PROCESS=main
@@ -61,7 +61,7 @@ services:
       - VEO3_API_KEY=${VEO3_API_KEY}
       - SENDGRID_API_KEY=${SENDGRID_API_KEY}
     networks:
-      - ucg-network
+      - jelika-network
     volumes:
       - n8n-data:/home/node/.n8n
       - n8n-logs:/var/log/n8n
@@ -76,12 +76,12 @@ services:
   # --------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: ucg-studio-redis
+    container_name: jelika-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     networks:
-      - ucg-network
+      - jelika-network
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
@@ -96,13 +96,13 @@ services:
   # --------------------------------------------------------------------------
   nginx:
     image: nginx:alpine
-    container_name: ucg-studio-nginx
+    container_name: jelika-nginx
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     networks:
-      - ucg-network
+      - jelika-network
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
@@ -122,7 +122,7 @@ services:
   # --------------------------------------------------------------------------
   certbot:
     image: certbot/certbot
-    container_name: ucg-studio-certbot
+    container_name: jelika-certbot
     volumes:
       - ./ssl:/etc/letsencrypt
       - certbot-webroot:/var/www/certbot
@@ -133,12 +133,12 @@ services:
   # --------------------------------------------------------------------------
   loki:
     image: grafana/loki:latest
-    container_name: ucg-studio-loki
+    container_name: jelika-loki
     restart: unless-stopped
     ports:
       - "3100:3100"
     networks:
-      - ucg-network
+      - jelika-network
     volumes:
       - loki-data:/loki
       - ./loki-config.yml:/etc/loki/local-config.yaml
@@ -149,10 +149,10 @@ services:
   # --------------------------------------------------------------------------
   promtail:
     image: grafana/promtail:latest
-    container_name: ucg-studio-promtail
+    container_name: jelika-promtail
     restart: unless-stopped
     networks:
-      - ucg-network
+      - jelika-network
     volumes:
       - ./promtail-config.yml:/etc/promtail/config.yml
       - app-logs:/var/log/app
@@ -165,12 +165,12 @@ services:
   # --------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:latest
-    container_name: ucg-studio-grafana
+    container_name: jelika-grafana
     restart: unless-stopped
     ports:
       - "3001:3000"
     networks:
-      - ucg-network
+      - jelika-network
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
@@ -184,7 +184,7 @@ services:
 # Networks
 # ==============================================================================
 networks:
-  ucg-network:
+  jelika-network:
     driver: bridge
 
 # ==============================================================================

@@ -60,7 +60,7 @@ async function handleGoogleLogin() {
 <template>
   <div class="w-full max-w-md">
     <div class="card">
-      <h1 class="text-2xl font-bold text-neutral-900 mb-6">Log in to UCG Studio</h1>
+      <h1 class="text-2xl font-bold text-neutral-900 mb-6">Log in to Jelika</h1>
 
       <!-- Error Message -->
       <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">

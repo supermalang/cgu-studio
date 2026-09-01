@@ -1,4 +1,4 @@
-# UCG Studio - Quick Start Guide
+# Jelika - Quick Start Guide
 
 **For:** Solo developer building MVP by February 14, 2026  
 **Time to First Deploy:** ~4 hours
@@ -34,8 +34,8 @@ This guide gets you from zero to a working MVP in the fastest way possible.
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/ucg-studio.git
-cd ucg-studio/frontend
+git clone https://github.com/your-username/jelika.git
+cd jelika/frontend
 
 # Install dependencies
 npm install
@@ -56,7 +56,7 @@ npm run dev
 ssh root@your-server-ip
 
 # Run automated setup
-curl -fsSL https://raw.githubusercontent.com/your-username/ucg-studio/main/scripts/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/your-username/jelika/main/scripts/setup.sh | bash
 
 # Follow prompts to enter API keys
 ```

@@ -1,4 +1,4 @@
-# UCG Studio - Development Progress
+# Jelika - Development Progress
 
 **Last Updated:** January 20, 2026
 **Status:** Phase 1 Complete ✅
@@ -71,7 +71,7 @@
   - Create project button (placeholder modal)
 
 #### 6. Design System
-- [x] Custom Tailwind configuration with UCG Studio colors
+- [x] Custom Tailwind configuration with Jelika colors
   - Primary: #1313EC
   - Success: #22D34E
   - Neutral: #F8F8F8, #111118

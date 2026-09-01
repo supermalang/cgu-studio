@@ -1,6 +1,6 @@
-# UCG Studio
+# Jelika
 
-**AI-Powered Video Production Platform** for creating consistent short-form video content
+**AI-powered CMS for social network content** — plan, generate, and schedule posts across every channel
 
 [![Status](https://img.shields.io/badge/status-in%20development-yellow)](https://github.com)
 [![Phase](https://img.shields.io/badge/phase-1%20complete-green)](https://github.com)
@@ -10,16 +10,15 @@
 
 ## Overview
 
-UCG Studio helps content creators turn scripts into professional short-form videos using AI. Paste your script, and our platform automatically breaks it into optimized segments, generates voiceovers and video clips, and exports organized files ready for editing.
+Jelika helps content teams run their social presence in one place: write a post once, tailor it per channel, attach media (uploaded or AI-generated from a reusable avatar and environment), and schedule it across Instagram, TikTok, LinkedIn, X and more.
 
 ### Key Features
 
-- **Smart Script Breakdown** - AI segments your script into optimal 2-8 second video shots
-- **3 Camera Angles** - Get 3 AI prompt alternatives for each shot
-- **AI Voice Generation** - ElevenLabs integration for professional voiceovers
-- **Video Generation** - Google Veo 3 powered video clips
-- **AI Budget Control** - Mix AI-generated and stock footage (20-100% AI)
-- **Batch Production** - Intuitive table interface for managing 30+ shots
+- **Content Calendar** - Month view of everything scheduled, across all channels
+- **Write Once, Tailor Per Channel** - A shared caption with per-channel overrides and live character-limit checks
+- **AI Media Generation** - Reusable avatars and environments generate on-brand images via n8n
+- **Atomic Scheduling** - A post and all of its channel variants schedule together, never half-way
+- **Approval Flow** - Draft → needs review → approved → scheduled → published
 - **Export Ready** - Download organized, numbered clips for final editing
 
 ### Target Launch
@@ -66,7 +65,7 @@ UCG Studio helps content creators turn scripts into professional short-form vide
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd ucg-studio
+   cd jelika
    ```
 
 2. **Install dependencies**
@@ -101,7 +100,7 @@ UCG Studio helps content creators turn scripts into professional short-form vide
    - Execute the query
 4. Enable Realtime on tables:
    - Dashboard → Database → Replication
-   - Enable for: `projects`, `shots`, `notifications`
+   - Enable for: `posts`, `post_variants`, `environments`, `n8n_jobs`, `notifications`
 
 **Troubleshooting:** If you encounter issues, see [docs/QUICK_FIX_GUIDE.md](docs/QUICK_FIX_GUIDE.md)
 
@@ -110,7 +109,7 @@ UCG Studio helps content creators turn scripts into professional short-form vide
 ## Project Structure
 
 ```
-ucg-studio/
+jelika/
 ├── frontend/              # Vue 3 application
 │   ├── src/
 │   │   ├── components/   # Reusable components
@@ -204,8 +203,8 @@ The design system includes 50+ Tailwind utility classes:
 
 - [ ] Project creation flow
 - [ ] Production table interface
-- [ ] Script breakdown (n8n integration)
-- [ ] Audio/video generation
+- [ ] Publishing pipeline (n8n → channels)
+- [ ] OAuth channel connection
 - [ ] Real-time status updates
 - [ ] Export system
 
@@ -295,26 +294,25 @@ For complete deployment instructions, see [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOY
 
 - New users start with **0 credits**
 - Credit packages: $5 (250 credits), $20 (1000 credits), $50 (3000 credits)
-- Costs per shot:
-  - Script breakdown: 10 credits
-  - Audio generation: 2 credits
-  - Video generation: 50 credits
+- Credits are spent on AI generation, not on posting or scheduling
 - Automatic refunds on generation failures
 
-### AI Budget
+### Content Workflow
 
-Users control cost vs quality with an AI Budget slider (20-100%):
-- **80% AI Budget** = 80% AI-generated clips + 20% stock footage recommendations
-- System intelligently suggests stock for generic scenes to save costs
+1. User connects the channels they publish to
+2. User writes a post — an internal title, a shared caption, hashtags
+3. Channels are selected; each gets a variant that can override the caption
+4. Media is attached: uploaded, or generated from an avatar + environment via n8n
+5. The post is scheduled — post and all variants move together, atomically
+6. n8n publishes to each channel and writes back the permalink or the error
+7. Realtime updates show publish progress per channel
 
-### Production Workflow
+### Per-Channel Overrides
 
-1. User creates project and pastes script
-2. AI breaks script into 2-8 second segments (30+ shots typical)
-3. For each segment, AI generates 3 camera angle prompts
-4. User selects preferred prompt and generates audio + video
-5. Real-time updates show generation progress
-6. Export downloads ZIP with organized, numbered files
+A post has one caption. Each channel variant may override it — `NULL` means
+"inherit". Character limits are enforced per platform in the editor (280 on X,
+2200 on Instagram, 3000 on LinkedIn), so overruns surface before publishing
+rather than after a failed API call.
 
 ---
 

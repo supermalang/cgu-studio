@@ -1,9 +1,9 @@
-# UCG Studio - Recommended File Structure
+# Jelika - Recommended File Structure
 
 ## Complete Project Structure
 
 ```
-ucg-studio/
+jelika/
 ├── .git/
 ├── .github/
 │   └── workflows/
@@ -254,7 +254,7 @@ export function useN8n() {
 #### Directory Structure on VM
 
 ```
-/var/www/ucg-studio/
+/var/www/jelika/
 ├── frontend/           # Cloned from Git
 ├── deployment/         # Cloned from Git
 │   ├── docker-compose.yml
@@ -273,8 +273,8 @@ export function useN8n() {
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/your-username/ucg-studio.git
-cd ucg-studio
+git clone https://github.com/your-username/jelika.git
+cd jelika
 ```
 
 ### 2. Frontend Setup

@@ -39,3 +39,6 @@ coverage
 
 # Vitest
 __screenshots__/
+
+# Devcontainer secrets (sample is committed, real file is not)
+.devcontainer/secrets.env

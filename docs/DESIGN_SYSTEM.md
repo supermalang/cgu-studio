@@ -1,6 +1,6 @@
-# UCG Studio - Design System v1.0
+# Jelika - Design System v1.0
 
-Complete design specifications and UI component library for the UCG AI video production platform.
+Complete design specifications and UI component library for the Jelika AI video production platform.
 
 ---
 
@@ -82,13 +82,13 @@ font-family: 'Inter', system-ui, -apple-system, sans-serif;
 
 ```vue
 <!-- Page Title -->
-<h1 class="text-4xl font-black text-neutral-900">UCG Studio</h1>
+<h1 class="text-4xl font-black text-neutral-900">Jelika</h1>
 
 <!-- Section Heading -->
 <h2 class="text-2xl font-bold text-neutral-900">Your Projects</h2>
 
 <!-- Body Text -->
-<p class="text-base text-neutral-700">Welcome to UCG Studio...</p>
+<p class="text-base text-neutral-700">Welcome to Jelika...</p>
 
 <!-- Small Text -->
 <span class="text-sm text-neutral-500">Last updated 2 hours ago</span>

@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 const routes = [
   {
     path: '/',
-    redirect: '/projects'
+    redirect: '/calendar'
   },
   {
     path: '/auth/login',
@@ -23,6 +23,30 @@ const routes = [
     name: 'reset-password',
     component: () => import('@/views/auth/PasswordResetView.vue'),
     meta: { requiresGuest: true }
+  },
+  {
+    path: '/calendar',
+    name: 'calendar',
+    component: () => import('@/views/content/ContentCalendarView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/posts/new',
+    name: 'post-create',
+    component: () => import('@/views/content/PostEditorView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/posts/:id',
+    name: 'post-edit',
+    component: () => import('@/views/content/PostEditorView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/channels',
+    name: 'social-accounts',
+    component: () => import('@/views/accounts/SocialAccountsView.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/projects',
@@ -144,7 +168,7 @@ router.beforeEach(async (to, from, next) => {
 
   // Check if route is for guests only (login/signup)
   if (requiresGuest && authStore.isAuthenticated) {
-    next({ name: 'dashboard' })
+    next({ name: 'calendar' })
     return
   }
 

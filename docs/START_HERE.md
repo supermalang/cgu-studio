@@ -1,4 +1,4 @@
-# 🎯 START HERE - Your UCG Studio Project Package
+# 🎯 START HERE - Your Jelika Project Package
 
 **Created:** January 20, 2026  
 **Status:** Complete & Ready to Build  
@@ -8,7 +8,7 @@
 
 ## ✅ What You Have
 
-Your complete UCG Studio specification package with **8 files** ready for development:
+Your complete Jelika specification package with **8 files** ready for development:
 
 1. ✅ **INDEX.md** - Overview of everything (start here for orientation)
 2. ✅ **CLAUDE.md** - Give this to Claude Code to start building
@@ -29,15 +29,15 @@ Your complete UCG Studio specification package with **8 files** ready for develo
 
 **Step 2:** Create your project folder:
 ```bash
-mkdir ucg-studio
-cd ucg-studio
+mkdir jelika
+cd jelika
 ```
 
 **Step 3:** Copy all these files into your project
 
 **Step 4:** In Claude Code, say:
 ```
-@CLAUDE.md Read all the documentation files and help me build UCG Studio. 
+@CLAUDE.md Read all the documentation files and help me build Jelika. 
 Let's start with setting up the Vue project and authentication.
 ```
 
@@ -207,7 +207,7 @@ Everything is documented, planned, and organized. Whether you use Claude Code or
 
 **Remember:** You have 23 days. Build iteratively, test frequently, and ship on time.
 
-**Let's build UCG Studio! 💪🚀**
+**Let's build Jelika! 💪🚀**
 
 ---
 

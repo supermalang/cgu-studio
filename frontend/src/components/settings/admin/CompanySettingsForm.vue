@@ -108,7 +108,7 @@ defineExpose({
           type="text"
           class="input-field"
           :class="{ 'border-error-500': errors.company_name }"
-          placeholder="UCG Studio"
+          placeholder="Jelika"
           maxlength="100"
           @blur="validateField('company_name'); emitUpdate()"
         >
@@ -140,7 +140,7 @@ defineExpose({
           type="email"
           class="input-field"
           :class="{ 'border-error-500': errors.support_email }"
-          placeholder="support@ucgstudio.com"
+          placeholder="support@jelika.app"
           @blur="validateField('support_email'); emitUpdate()"
         >
         <p v-if="errors.support_email" class="input-error">{{ errors.support_email }}</p>
@@ -172,7 +172,7 @@ defineExpose({
           type="email"
           class="input-field"
           :class="{ 'border-error-500': errors.contact_email }"
-          placeholder="contact@ucgstudio.com"
+          placeholder="contact@jelika.app"
           @blur="validateField('contact_email'); emitUpdate()"
         >
         <p v-if="errors.contact_email" class="input-error">{{ errors.contact_email }}</p>

@@ -1,4 +1,4 @@
-# Getting Started with UCG Studio Development
+# Getting Started with Jelika Development
 
 ## Quick Setup (5 minutes)
 

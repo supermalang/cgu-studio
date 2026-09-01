@@ -1,5 +1,5 @@
 -- ============================================================================
--- UCG STUDIO DATABASE SCHEMA
+-- JELIKA DATABASE SCHEMA
 -- PostgreSQL 15 (Supabase)
 -- Version: 1.0.0
 -- Last Updated: January 20, 2026
@@ -138,9 +138,9 @@ CREATE TABLE admin_settings (
   
   -- Company Settings (JSONB)
   company_settings JSONB NOT NULL DEFAULT '{
-    "company_name": "UCG Studio",
+    "company_name": "Jelika",
     "description": "AI-powered video production platform",
-    "support_email": "support@ucgstudio.com",
+    "support_email": "support@jelika.app",
     "contact_phone": "",
     "contact_email": "",
     "logo_url": ""

@@ -1,4 +1,4 @@
-# UCG Studio - Complete Project Specification
+# Jelika - Complete Project Specification
 
 **Version:** 1.0.0  
 **Last Updated:** January 20, 2026  
@@ -23,7 +23,7 @@
 
 ### 1.1 Project Identity
 
-**Name:** UCG Studio  
+**Name:** Jelika  
 **Tagline:** AI-powered end-to-end video production platform for consistent short-form content
 
 ### 1.2 Problem Statement
@@ -41,7 +41,7 @@ Elhadji wants to create an 8-minute podcast video. Current AI tools force him to
 
 ### 1.3 Solution
 
-**UCG Studio's Approach:**  
+**Jelika's Approach:**  
 1. User pastes full script into the platform
 2. AI automatically breaks script into optimized 2-8 second segments
 3. AI generates 3 camera angle prompts per segment
@@ -246,7 +246,7 @@ key_tasks:
 **Interactive Modal Approach:**
 
 ```
-Step 1: "Welcome to UCG Studio! 🎬"
+Step 1: "Welcome to Jelika! 🎬"
   → "Let's create your first AI video in minutes"
   → [Next]
 
@@ -272,7 +272,7 @@ Step 4: "Paste your script and we'll do the rest ✨"
 ┌─────────────────────────────────────────────────────────────┐
 │ STAGE 1: DISCOVERY & SIGNUP                                 │
 ├─────────────────────────────────────────────────────────────┤
-│ 1. User lands on ucgstudio.com                              │
+│ 1. User lands on jelika.app                              │
 │ 2. Reads value proposition                                  │
 │ 3. Clicks "Get Started"                                     │
 │ 4. Completes signup (email + password)                      │
@@ -356,7 +356,7 @@ Total Time: 35-60 minutes from signup to first export
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ UCG Studio               [Credits: 230] [Profile ▼]         │
+│ Jelika               [Credits: 230] [Profile ▼]         │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  Welcome back, Elhadji! 👋                                  │
@@ -753,7 +753,7 @@ Auto-saves to database (optimistic UI update)
    ```javascript
    // Parallel requests
    const [audioResponse, videoResponse] = await Promise.all([
-     fetch('https://n8n.ucgstudio.com/webhook/generate-audio', {
+     fetch('https://n8n.jelika.app/webhook/generate-audio', {
        method: 'POST',
        headers: { 'X-API-Key': n8nApiKey },
        body: JSON.stringify({
@@ -763,7 +763,7 @@ Auto-saves to database (optimistic UI update)
          voice_settings: { speed: 1.0, stability: 0.75 }
        })
      }),
-     fetch('https://n8n.ucgstudio.com/webhook/generate-video', {
+     fetch('https://n8n.jelika.app/webhook/generate-video', {
        method: 'POST',
        headers: { 'X-API-Key': n8nApiKey },
        body: JSON.stringify({
@@ -1180,7 +1180,7 @@ Examples:
 
 4. **Email Notification:**
    ```
-   Subject: Your UCG Studio Export is Ready!
+   Subject: Your Jelika Export is Ready!
    
    Hi Elhadji,
    
@@ -1194,7 +1194,7 @@ Examples:
    (Link expires in 3 days)
    
    Thanks,
-   UCG Studio Team
+   Jelika Team
    ```
 
 5. **Storage Duration:**
@@ -1463,7 +1463,7 @@ vue_app_calls:
 
 **Example Request:**
 ```javascript
-await fetch('https://n8n.ucgstudio.com/webhook/generate-audio', {
+await fetch('https://n8n.jelika.app/webhook/generate-audio', {
   method: 'POST',
   headers: {
     'X-API-Key': process.env.N8N_API_KEY,
@@ -1722,7 +1722,7 @@ google_oauth:
   provider: google
   client_id: from_google_console
   client_secret: from_google_console
-  redirect_url: https://app.ucgstudio.com/auth/callback
+  redirect_url: https://app.jelika.app/auth/callback
 ```
 
 **Password Reset Flow:**
@@ -1953,8 +1953,8 @@ Similar structure to Wave
 // n8n workflow after export complete
 await sendgrid.send({
   to: user.email,
-  from: 'noreply@ucgstudio.com',
-  subject: 'Your UCG Studio Export is Ready!',
+  from: 'noreply@jelika.app',
+  subject: 'Your Jelika Export is Ready!',
   templateId: 'd-xxxxx',
   dynamicTemplateData: {
     user_name: user.full_name,
@@ -2107,8 +2107,8 @@ services:
 
 **Queryable Logs:**
 ```
-{app="ucg-studio"} |= "generation_failed"
-{app="ucg-studio", level="ERROR"}
+{app="jelika"} |= "generation_failed"
+{app="jelika", level="ERROR"}
 {app="n8n"} |= "workflow_execution_failed"
 ```
 

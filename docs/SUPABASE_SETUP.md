@@ -1,6 +1,6 @@
 # Supabase Setup & Troubleshooting Guide
 
-Complete guide for setting up UCG Studio with Supabase, including common issues and solutions.
+Complete guide for setting up Jelika with Supabase, including common issues and solutions.
 
 ---
 
@@ -11,7 +11,7 @@ Complete guide for setting up UCG Studio with Supabase, including common issues 
 1. Go to [https://supabase.com](https://supabase.com)
 2. Click "New Project"
 3. Fill in:
-   - **Name:** UCG Studio
+   - **Name:** Jelika
    - **Database Password:** (save this securely)
    - **Region:** Choose closest to your users
 4. Wait 2-3 minutes for provisioning

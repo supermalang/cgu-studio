@@ -1,40 +1,54 @@
-# UCG Studio - AI Assistant Development Guide
+# Jelika - AI Assistant Development Guide
 
-**Project:** UCG Studio - AI-Powered Video Production Platform
-**Deadline:** February 14, 2026 (MVP)
-**Status:** Phase 1 Complete (Authentication ✅)
+**Project:** Jelika - AI-powered CMS for social network content
+**Status:** Pivoted from a video-production tool (see "History" below)
 
 ---
 
 ## Quick Start for AI Assistants
 
-This guide helps you understand UCG Studio and assist with development efficiently.
+This guide helps you understand Jelika and assist with development efficiently.
 
 ### Essential Reading Order
 
 1. **This file first** - Overview and development approach (10 min)
-2. **[README.md](README.md)** - Project overview and getting started (5 min)
-3. **[docs/README.md](docs/README.md)** - Complete technical specification (as needed)
-4. **[database/schema.sql](database/schema.sql)** - Database structure (when working with data)
+2. **[database/schema.sql](database/schema.sql)** + `database/migrations/009`-`011` - Database structure
+3. **[docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)** - UI design system
+
+> ⚠️ **`docs/` is stale.** Everything under `docs/` except the design system still
+> describes the old script-to-video product. Do not treat it as a specification.
+> The database schema and the code are the source of truth.
 
 ### Project Context
 
-**What it does:** Helps creators turn scripts into professional short-form videos using AI
+**What it does:** A CMS for planning, generating, and scheduling social media content.
 
 **Core workflow:**
-1. User pastes script → AI breaks it into segments
-2. Each segment gets 3 camera angle options
-3. User generates audio (ElevenLabs) + video (Google Veo 3)
-4. Export organized clips ready for editing
+1. User connects channels (Instagram, TikTok, LinkedIn, X, …)
+2. User writes a post — one shared caption, plus per-channel overrides
+3. Media is attached, either uploaded or AI-generated from an avatar + environment
+4. Post is scheduled; n8n publishes to each channel and writes the result back
 
 **Tech stack:** Vue 3, Supabase (PostgreSQL + Auth + Storage + Realtime), n8n automation, TailwindCSS
+
+### History: what pivoted
+
+The project began as "UCG Studio", a script-to-video tool. The name is gone and the
+domain has moved to social content management. Two things survive from that era:
+
+- **Kept and central:** the AI generation stack — `avatars`, `avatar_wardrobes`,
+  `environments`, and `n8n_jobs`. These now produce the *media attached to posts*.
+- **Legacy, still present but unused by the CMS:** the `shots` and `exports` tables
+  and the video-production columns on `projects`. They were deliberately left in
+  place rather than dropped. `projects` is reused as **campaigns** — a grouping for
+  posts (the sidebar already labels it "Campaigns").
 
 ---
 
 ## Project Structure
 
 ```
-/workspace/workspace/ucg-studio/
+/workspace/workspace/jelika/
 ├── frontend/                 # Vue 3 application
 │   ├── src/
 │   │   ├── components/      # Reusable Vue components
@@ -42,7 +56,8 @@ This guide helps you understand UCG Studio and assist with development efficient
 │   │   │   ├── common/      # ✅ AppHeader
 │   │   │   ├── dashboard/   # Project cards, stats widgets
 │   │   │   ├── project/     # Project creation, settings
-│   │   │   └── production/  # Production table (core feature)
+│   │   │   ├── content/     # ✅ Channel variant editor (core feature)
+│   │   │   └── production/  # Legacy video production components
 │   │   ├── views/           # Route pages
 │   │   │   ├── auth/        # ✅ Auth pages
 │   │   │   ├── dashboard/   # ✅ Dashboard
@@ -103,39 +118,37 @@ This guide helps you understand UCG Studio and assist with development efficient
 
 ---
 
-## Next Phase: Core Workflow (In Progress)
+## Current State & Next Steps
 
-### Immediate Priorities
+### Built
 
-1. **Project Creation Flow**
-   - Create modal component with multi-step form
-   - Fields: name, script, AI budget (20-100%), aspect ratio, resolution, language
-   - Integrate n8n webhook for script breakdown
-   - Save project to Supabase
+- Auth (email + Google OAuth), protected routes, admin roles
+- Avatar library, environment creation/editing with AI generation via n8n
+- Credits, billing, admin settings
+- **Social CMS:** channels, posts, per-channel variants, media, content calendar
 
-2. **Production Table (Most Complex Feature)**
-   - Data table showing all shots
-   - Columns: checkbox, shot#, duration, script text, prompt selector, generate button, preview
-   - Inline editing of script text
-   - Prompt selector dropdown (3 alternatives per shot)
-   - Generation buttons with status indicators
-   - Real-time updates via Supabase Realtime
+### Frontend map for the CMS
 
-3. **Audio/Video Generation**
-   - Credit deduction before generation
-   - n8n webhook calls (parallel audio + video)
-   - Upload returned base64 media to Supabase Storage
-   - Update shot records with file URLs
-   - Handle failures with automatic credit refund
+- Store: [frontend/src/stores/posts.js](frontend/src/stores/posts.js) — posts, variants, media, realtime
+- Store: [frontend/src/stores/socialAccounts.js](frontend/src/stores/socialAccounts.js)
+- Helper: [frontend/src/lib/platforms.js](frontend/src/lib/platforms.js) — platform list, caption limits, status badges
+- Calendar: [frontend/src/views/content/ContentCalendarView.vue](frontend/src/views/content/ContentCalendarView.vue)
+- Editor: [frontend/src/views/content/PostEditorView.vue](frontend/src/views/content/PostEditorView.vue)
+- Per-channel captions: [frontend/src/components/content/ChannelVariantEditor.vue](frontend/src/components/content/ChannelVariantEditor.vue)
+- Channels: [frontend/src/views/accounts/SocialAccountsView.vue](frontend/src/views/accounts/SocialAccountsView.vue)
 
-4. **Export System**
-   - Client-side ZIP creation using JSZip
-   - File naming: shot_01_video.mp4, shot_01_audio.mp3
-   - Download trigger
+### Not built yet
 
-For detailed requirements, see [docs/README.md](docs/README.md)
-
----
+1. **Publishing pipeline** — n8n workflows for `post_publish`. The schema is ready
+   (`post_variants.external_post_id`/`external_url`/`error_message`, and the
+   `post_publish` workflow type). Nothing calls them yet.
+2. **Real OAuth channel connection** — channels are added by hand today. The
+   `credential_ref` column is the intended hook.
+3. **Attaching generated media to a post** — `posts.attachMedia()` exists in the
+   store, but no UI wires environment generation output into a post.
+4. **Approval flow** — `needs_review` / `approved` statuses exist and are settable,
+   but there is no reviewer inbox.
+5. **Analytics** — no engagement metrics are collected.
 
 ## Key Technical Patterns
 
@@ -156,14 +169,14 @@ export const supabase = createClient(
 ```javascript
 // In Vue component
 const channel = supabase
-  .channel('shots-realtime')
+  .channel('posts-realtime')
   .on('postgres_changes', {
     event: 'UPDATE',
     schema: 'public',
-    table: 'shots',
-    filter: `project_id=eq.${projectId}`
+    table: 'posts',
+    filter: `user_id=eq.${userId}`
   }, (payload) => {
-    updateShotInState(payload.new)
+    updatePostInState(payload.new)
   })
   .subscribe()
 
@@ -179,17 +192,17 @@ export function useN8n() {
   const baseUrl = import.meta.env.VITE_N8N_WEBHOOK_URL
   const apiKey = import.meta.env.VITE_N8N_API_KEY
 
-  async function scriptBreakdown(projectId, script, aiBudget) {
-    const response = await fetch(`${baseUrl}/webhook/script-breakdown`, {
+  async function generatePostMedia(postId, prompt, environmentId) {
+    const response = await fetch(`${baseUrl}/webhook/post-media`, {
       method: 'POST',
       headers: {
         'X-API-Key': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ project_id: projectId, script, ai_budget_percentage: aiBudget })
+      body: JSON.stringify({ post_id: postId, prompt, environment_id: environmentId })
     })
 
-    if (!response.ok) throw new Error('Script breakdown failed')
+    if (!response.ok) throw new Error('Post media generation failed')
     return response.json()
   }
 
@@ -205,10 +218,10 @@ export function useN8n() {
 3. If yes: Immediately deduct credits (UPDATE profiles)
 4. Database trigger: Insert credit_transaction record
 5. Database trigger: Update user balance
-6. Call n8n webhooks (audio + video)
+6. Call the n8n webhook (media generation)
 7. n8n returns base64 media
 8. Upload to Supabase Storage
-9. Update shot with file URLs
+9. Insert a post_media row with the file URL
 10. If failed: Trigger auto-refunds credits
 ```
 
@@ -218,41 +231,74 @@ export function useN8n() {
 
 ### Key Tables
 
+**Social CMS core** (migrations 009-011):
+
 ```sql
--- User data
-profiles (
-  id, full_name, email, credit_balance,
-  elevenlabs_api_key, role, status, total_storage_used
+-- Channels the user publishes to. No OAuth token is stored here: the client
+-- reads this table under RLS, so credentials live in n8n and are referenced
+-- by credential_ref.
+social_accounts (
+  id, user_id, platform, handle, display_name,
+  external_account_id, credential_ref, is_active
 )
 
--- Projects
-projects (
-  id, user_id, name, slug, script, status,
-  ai_budget_percentage, target_aspect_ratio, target_resolution,
-  total_shots, total_credits_used
+-- One piece of content, channel-agnostic. title is internal (calendar label),
+-- never published.
+posts (
+  id, user_id, title, body, hashtags[], status,
+  scheduled_for, published_at,
+  project_id,                    -- campaign grouping
+  avatar_id, environment_id      -- generation context
 )
 
--- Video segments
-shots (
-  id, project_id, shot_number, script_text, duration_seconds,
-  ai_prompt_1, ai_prompt_2, ai_prompt_3, selected_prompt,
-  shot_category_1, shot_category_2, shot_category_3,
-  generation_status, audio_file_url, video_file_url,
-  voice_settings JSONB
+-- The per-channel version that actually publishes. NULL override = inherit
+-- from the parent post. Carries a denormalised user_id so RLS avoids a join.
+post_variants (
+  id, post_id, social_account_id, user_id,
+  body_override, hashtags_override, scheduled_for_override,
+  status, external_post_id, external_url, published_at, error_message
 )
 
--- Credits
-credit_transactions (
-  user_id, transaction_type, amount,
-  previous_balance, new_balance, reason
-)
-
--- Payments
-payment_transactions (
-  user_id, payment_provider, payment_amount_usd,
-  credits_purchased, payment_status
+-- Media on a post, uploaded or generated. Generated rows keep provenance back
+-- to the environment/avatar/job that produced them.
+post_media (
+  id, post_id, user_id, kind, source, file_url, position,
+  environment_id, avatar_id, n8n_job_id
 )
 ```
+
+**Generation stack** (pre-existing, still central):
+
+```sql
+avatars (id, user_id, name, reference_photo_url, physical_specs JSONB, ...)
+environments (id, user_id, name, reference_image_url, result_images JSONB[], active_result_index, ...)
+n8n_jobs (id, user_id, workflow_type, status, environment_id, avatar_id, post_id, ...)
+```
+
+**Accounts and money:** `profiles`, `credit_transactions`, `payment_transactions`, `admin_settings`.
+
+**Legacy, unused by the CMS:** `shots`, `exports`.
+
+### RPCs worth knowing
+
+- `get_content_calendar(range_start, range_end)` — posts in a window with their
+  channels and media count folded into one row. The calendar renders from this.
+- `schedule_post(target_post_id, publish_at)` — moves the post *and* every one of
+  its variants to `scheduled` atomically, so a scheduled post can never show
+  channels stranded in draft. Raises if the post has no channels.
+
+### Trigger gotcha (fixed in migration 011)
+
+`update_updated_at_column()` used to assign `NEW.updated_by = auth.uid()`
+unconditionally. That broke every `UPDATE` on tables without an `updated_by`
+column (`n8n_jobs`), and every service-role write to tables where it is `NOT NULL`
+(n8n writing results back to `environments`). There are now two functions:
+
+- `update_updated_at_column()` — timestamp only; for `n8n_jobs`, `post_variants`, `post_media`
+- `set_updated_audit_columns()` — timestamp + `updated_by`, using
+  `COALESCE(auth.uid(), NEW.updated_by)` so service-role writes keep the last human editor
+
+**Any new table with an `updated_by` column must use `set_updated_audit_columns()`.**
 
 **Important:** All tables have Row Level Security (RLS) enabled. Users only see their own data.
 
@@ -454,8 +500,8 @@ const subscription = supabase
   .on('postgres_changes', {
     event: '*',
     schema: 'public',
-    table: 'shots',
-    filter: `project_id=eq.${projectId}`
+    table: 'posts',
+    filter: `user_id=eq.${userId}`
   }, handleUpdate)
   .subscribe()
 
@@ -535,23 +581,22 @@ Before considering a feature complete:
 ## Success Criteria
 
 **MVP is ready when:**
-- [ ] Users can create projects with script breakdown
-- [ ] Production table displays all shots with 3 prompt options
-- [ ] Audio + video generation works end-to-end
-- [ ] Real-time updates show generation progress
+- [ ] Users can connect channels and see them in the picker
+- [x] Posts can be created with a shared caption and per-channel overrides
+- [x] Content calendar shows scheduled posts across channels
+- [x] Scheduling moves the post and every variant atomically
+- [ ] n8n publishes to each channel and writes back the permalink
+- [ ] Failed channels surface the error and can be retried
+- [ ] Generated media from an environment can be attached to a post
 - [ ] Credits deduct and refund correctly
-- [ ] Export downloads ZIP with numbered files
 - [ ] Mobile layout doesn't break
 - [ ] No errors in browser console
 
----
-
 ## Ready to Build!
 
-Start with the Project Creation modal, then tackle the Production Table (the core feature).
+The next meaningful piece is the **publishing pipeline**: n8n workflows that read
+`post_variants`, publish to each platform, and write `external_url` or
+`error_message` back. The schema and the UI for it already exist.
 
-For questions, consult [docs/README.md](docs/README.md) for detailed specifications.
-
-**Last Updated:** January 20, 2026
-**Current Phase:** 1 of 4 (Foundation Complete ✅)
-**Next Milestone:** Core workflow (Project creation + Production table)
+**Last Updated:** August 31, 2026
+**Next Milestone:** Publishing pipeline (n8n → channels → write-back)

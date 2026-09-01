@@ -13,7 +13,7 @@ export const useCompanyStore = defineStore('company', () => {
   const CACHE_DURATION = 5 * 60 * 1000
 
   // Default values
-  const companyName = ref('UCG Studio')
+  const companyName = ref('Jelika')
   const companyDescription = ref('')
   const supportEmail = ref('')
   const contactPhone = ref('')
@@ -63,7 +63,7 @@ export const useCompanyStore = defineStore('company', () => {
 
       // Update computed values from company_settings
       if (data?.company_settings) {
-        companyName.value = data.company_settings.company_name || 'UCG Studio'
+        companyName.value = data.company_settings.company_name || 'Jelika'
         companyDescription.value = data.company_settings.description || ''
         supportEmail.value = data.company_settings.support_email || ''
         contactPhone.value = data.company_settings.contact_phone || ''

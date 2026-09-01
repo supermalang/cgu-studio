@@ -2,7 +2,7 @@
 
 ## 🎨 What Changed
 
-The UCG Studio design system has been significantly enhanced to match professional UI standards seen in modern AI production platforms.
+The Jelika design system has been significantly enhanced to match professional UI standards seen in modern AI production platforms.
 
 ---
 
@@ -455,7 +455,7 @@ With the design system complete, you can now:
 
 ## 🎉 Summary
 
-The UCG Studio design system is now **production-ready** with:
+The Jelika design system is now **production-ready** with:
 
 - ✅ 47 color shades across 5 palettes
 - ✅ 50+ component utility classes

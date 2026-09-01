@@ -1,6 +1,6 @@
-# UCG Studio - Component Library
+# Jelika - Component Library
 
-Reusable Vue components for the UCG Studio platform with usage examples.
+Reusable Vue components for the Jelika platform with usage examples.
 
 ---
 

@@ -1,0 +1,2 @@
+# Real secrets stay on the machine; only the sample is published.
+secrets.env
